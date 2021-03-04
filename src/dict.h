@@ -48,40 +48,55 @@
 #define DICT_NOTUSED(V) ((void) V)
 
 typedef struct dictEntry {
+    //key
     void *key;
+    //value
     union {
         void *val;
         uint64_t u64;
         int64_t s64;
         double d;
-    } v;
-    struct dictEntry *next;
+    } v; //联合体
+    struct dictEntry *next; //hash冲突时指向下一个节点的指针
 } dictEntry;
 
+//用于储存字典操作方法的结构体，储存的是函数指针
+//是为了实现各种形态的字典而抽象出来的一组操作函数。
 typedef struct dictType {
-    uint64_t (*hashFunction)(const void *key);
-    void *(*keyDup)(void *privdata, const void *key);
-    void *(*valDup)(void *privdata, const void *obj);
+    //该字典对应的hash函数
+    uint64_t (*hashFunction)(const void *key); 
+    //键对应的复制函数
+    void *(*keyDup)(void *privdata, const void *key); 
+    //值对应的复制函数
+    void *(*valDup)(void *privdata, const void *obj); 
+    //键的对比函数
     int (*keyCompare)(void *privdata, const void *key1, const void *key2);
+    //键的销毁函数
     void (*keyDestructor)(void *privdata, void *key);
+    //值的销毁函数
     void (*valDestructor)(void *privdata, void *obj);
+    //？扩展函数
     int (*expandAllowed)(size_t moreMem, double usedRatio);
 } dictType;
 
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
 typedef struct dictht {
-    dictEntry **table;
-    unsigned long size;
-    unsigned long sizemask;
-    unsigned long used;
+    dictEntry **table; //指针数组 用于储存键对值 *table为指向dictEntry的指针
+    unsigned long size; //table数组的大小
+    unsigned long sizemask; //掩码，二进制恒为111...111  索引值=Hash值&掩码值，对应Redis源码为：idx = hash & d->ht[table].sizemask
+    unsigned long used; //table数组已存元素个数，包含next单链表的数据
 } dictht;
 
 typedef struct dict {
     dictType *type;
-    void *privdata;
+    void *privdata; //该字典所依赖的数据,私有数据，配合type字段指向的函数一起使用。
+    //是个大小为2的数组，该数组存储的元素类型为dictht，
+    //虽然有两个元素，但一般情况下只会使用ht[0]，
+    //只有当该字典扩容、缩容需要进行rehash时，才会用到ht[1]
     dictht ht[2];
-    long rehashidx; /* rehashing not in progress if rehashidx == -1 */
+    long rehashidx; /* 是否正在进行rehash操作
+                     * rehashing not in progress if rehashidx == -1 */
     int16_t pauserehash; /* If >0 rehashing is paused (<0 indicates coding error) */
 } dict;
 

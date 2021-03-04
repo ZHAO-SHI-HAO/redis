@@ -108,16 +108,16 @@ static void _dictReset(dictht *ht)
 }
 
 /* Create a new hash table */
-dict *dictCreate(dictType *type,
-        void *privDataPtr)
+dict *dictCreate(dictType *type, void *privDataPtr)
 {
-    dict *d = zmalloc(sizeof(*d));
+    dict *d = zmalloc(sizeof(*d)); //96bytes
 
     _dictInit(d,type,privDataPtr);
     return d;
 }
 
-/* Initialize the hash table */
+/* Initialize the hash table
+ *结构体初始化值 */
 int _dictInit(dict *d, dictType *type,
         void *privDataPtr)
 {

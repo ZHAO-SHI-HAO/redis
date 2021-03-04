@@ -2176,17 +2176,16 @@ robj *rdbLoadObject(int rdbtype, rio *rdb, sds key) {
             return NULL;
         }
         moduleType *mt = moduleTypeLookupModuleByID(moduleid);
+        char name[10];
 
         if (rdbCheckMode && rdbtype == RDB_TYPE_MODULE_2) {
-            char name[10];
             moduleTypeNameByID(name,moduleid);
             return rdbLoadCheckModuleValue(rdb,name);
         }
 
         if (mt == NULL) {
-            char name[10];
             moduleTypeNameByID(name,moduleid);
-            rdbReportCorruptRDB("The RDB file contains module data I can't load: no matching module type '%s'", name);
+            rdbReportCorruptRDB("The RDB file contains module data I can't load: no matching module '%s'", name);
             return NULL;
         }
         RedisModuleIO io;
@@ -2213,8 +2212,7 @@ robj *rdbLoadObject(int rdbtype, rio *rdb, sds key) {
                 return NULL;
             }
             if (eof != RDB_MODULE_OPCODE_EOF) {
-                rdbReportCorruptRDB("The RDB file contains module data for the module '%s' that is not terminated by "
-                                    "the proper module value EOF marker", moduleTypeModuleName(mt));
+                rdbReportCorruptRDB("The RDB file contains module data for the module '%s' that is not terminated by the proper module value EOF marker", name);
                 if (ptr) {
                     o = createModuleObject(mt,ptr); /* creating just in order to easily destroy */
                     decrRefCount(o);
@@ -2224,9 +2222,8 @@ robj *rdbLoadObject(int rdbtype, rio *rdb, sds key) {
         }
 
         if (ptr == NULL) {
-            rdbReportCorruptRDB("The RDB file contains module data for the module type '%s', that the responsible "
-                                "module is not able to load. Check for modules log above for additional clues.",
-                                moduleTypeModuleName(mt));
+            moduleTypeNameByID(name,moduleid);
+            rdbReportCorruptRDB("The RDB file contains module data for the module type '%s', that the responsible module is not able to load. Check for modules log above for additional clues.", name);
             return NULL;
         }
         o = createModuleObject(mt,ptr);

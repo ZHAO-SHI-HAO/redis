@@ -28,6 +28,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+//快速链表
+
 #include <string.h> /* for memcpy */
 #include "quicklist.h"
 #include "zmalloc.h"

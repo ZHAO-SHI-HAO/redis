@@ -28,6 +28,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+//redis对象
+
 #include "server.h"
 #include <math.h>
 #include <ctype.h>

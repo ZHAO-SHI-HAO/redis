@@ -30,6 +30,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+//动态字符串
+
 #ifndef __SDS_H
 #define __SDS_H
 
@@ -81,6 +83,12 @@ struct __attribute__ ((__packed__)) sdshdr64 {
 #define SDS_TYPE_MASK 7
 #define SDS_TYPE_BITS 3
 #define SDS_HDR_VAR(T,s) struct sdshdr##T *sh = (void*)((s)-(sizeof(struct sdshdr##T)));
+/*
+*因为s是直接指向字符串的指针，通过(s)-(sizeof(struct sdshdr##T))
+*可以得到往前偏移的直接指向sds类型的指针。
+*（sdshdr##T）的意思是将##T替换为T，这样
+*得到的指针类型为(struct sdshdr##T *)，得到的指针指向为传入的s往前偏移(sizeof(struct sdshdr##T))的值
+*/
 #define SDS_HDR(T,s) ((struct sdshdr##T *)((s)-(sizeof(struct sdshdr##T))))
 #define SDS_TYPE_5_LEN(f) ((f)>>SDS_TYPE_BITS)
 

@@ -28,6 +28,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+//整数集合
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
