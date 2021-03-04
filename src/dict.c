@@ -110,7 +110,7 @@ static void _dictReset(dictht *ht)
 /* Create a new hash table */
 dict *dictCreate(dictType *type, void *privDataPtr)
 {
-    dict *d = zmalloc(sizeof(*d)); //96bytes
+    dict (*d) = zmalloc(sizeof(*d)); //96bytes
 
     _dictInit(d,type,privDataPtr);
     return d;
@@ -118,8 +118,7 @@ dict *dictCreate(dictType *type, void *privDataPtr)
 
 /* Initialize the hash table
  *结构体初始化值 */
-int _dictInit(dict *d, dictType *type,
-        void *privDataPtr)
+int _dictInit(dict *d, dictType *type, void *privDataPtr)
 {
     _dictReset(&d->ht[0]);
     _dictReset(&d->ht[1]);
@@ -131,13 +130,15 @@ int _dictInit(dict *d, dictType *type,
 }
 
 /* Resize the table to the minimal size that contains all the elements,
- * but with the invariant of a USED/BUCKETS ratio near to <= 1 */
+ * but with the invariant of a USED/BUCKETS ratio near to <= 1 
+ * 将表的大小调整为包含所有元素的最小大小，但used/bucket比率保持不变，接近 <= 1*/
 int dictResize(dict *d)
 {
     unsigned long minimal;
 
     if (!dict_can_resize || dictIsRehashing(d)) return DICT_ERR;
     minimal = d->ht[0].used;
+    //初始化dict时table为空，所以对刚初始化的dict会设置最小4个节点，然后扩展
     if (minimal < DICT_HT_INITIAL_SIZE)
         minimal = DICT_HT_INITIAL_SIZE;
     return dictExpand(d, minimal);
@@ -145,7 +146,10 @@ int dictResize(dict *d)
 
 /* Expand or create the hash table,
  * when malloc_failed is non-NULL, it'll avoid panic if malloc fails (in which case it'll be set to 1).
- * Returns DICT_OK if expand was performed, and DICT_ERR if skipped. */
+ * Returns DICT_OK if expand was performed, and DICT_ERR if skipped.
+ * 当malloc_failed为非NULL时，展开或创建哈希表， 
+ * 如果malloc失败，它将避免错误（在这种情况下，它将设置为1）。
+ * 如果执行了扩展，则返回DICT_OK，如果跳过，则返回DICT_ERR。 */
 int _dictExpand(dict *d, unsigned long size, int* malloc_failed)
 {
     if (malloc_failed) *malloc_failed = 0;
@@ -187,7 +191,8 @@ int _dictExpand(dict *d, unsigned long size, int* malloc_failed)
     return DICT_OK;
 }
 
-/* return DICT_ERR if expand was not performed */
+/* return DICT_ERR if expand was not performed 
+* 字典扩容*/
 int dictExpand(dict *d, unsigned long size) {
     return _dictExpand(d, size, NULL);
 }
@@ -288,7 +293,11 @@ static void _dictRehashStep(dict *d) {
     if (d->pauserehash == 0) dictRehash(d,1);
 }
 
-/* Add an element to the target hash table */
+/* Add an element to the target hash table 
+* 向dict中添加键对值
+* d: 入参字典 
+* key : 键
+* val: 值*/
 int dictAdd(dict *d, void *key, void *val)
 {
     dictEntry *entry = dictAddRaw(d,key,NULL);
@@ -315,6 +324,7 @@ int dictAdd(dict *d, void *key, void *val)
  * with the existing entry if existing is not NULL.
  *
  * If key was added, the hash entry is returned to be manipulated by the caller.
+ * 添加或查找键，添加成功返回新节点，并把老节点存入existing字段
  */
 dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
 {
@@ -326,17 +336,21 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
 
     /* Get the index of the new element, or -1 if
      * the element already exists. */
+    //查找键，找到则直接返回-1，并把老节点存入existing字段，否则把新节点的索引值返回。
+    //如果遇到Hash表容量不足，则进行扩容
     if ((index = _dictKeyIndex(d, key, dictHashKey(d,key), existing)) == -1)
         return NULL;
 
     /* Allocate the memory and store the new entry.
      * Insert the element in top, with the assumption that in a database
      * system it is more likely that recently added entries are accessed
-     * more frequently. */
-    ht = dictIsRehashing(d) ? &d->ht[1] : &d->ht[0];
+     * more frequently.
+     * 是否进行rehash操作中，是则插入至散列表ht[1]中，否则插入散列表ht[0] */
+    ht = dictIsRehashing(d) ? &d->ht[1] : &d->ht[0]; 
+    //申请新节点内存，插入散列表中，给新节点存入键信息
     entry = zmalloc(sizeof(*entry));
     entry->next = ht->table[index];
-    ht->table[index] = entry;
+    ht->table[index] = entry; //table[index]为(*table)
     ht->used++;
 
     /* Set the hash entry fields. */
@@ -1035,7 +1049,7 @@ static long _dictKeyIndex(dict *d, const void *key, uint64_t hash, dictEntry **e
     if (_dictExpandIfNeeded(d) == DICT_ERR)
         return -1;
     for (table = 0; table <= 1; table++) {
-        idx = hash & d->ht[table].sizemask;
+        idx = hash & d->ht[table].sizemask; //用键的hash值与字典掩码取与，得到索引值
         /* Search if this slot does not already contain the given key */
         he = d->ht[table].table[idx];
         while(he) {
