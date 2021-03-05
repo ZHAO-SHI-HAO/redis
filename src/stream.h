@@ -15,9 +15,11 @@ typedef struct streamID {
 
 typedef struct stream {
     rax *rax;               /* The radix tree holding the stream. */
-    uint64_t length;        /* Number of elements inside this stream. */
-    streamID last_id;       /* Zero if there are yet no items. */
-    rax *cgroups;           /* Consumer groups dictionary: name -> streamCG */
+    uint64_t length;        /* 消息个数（不包括已经删除的消息） Number of elements inside this stream. */
+    streamID last_id;       /* 最后插入的消息的ID Zero if there are yet no items. */
+    /* 当前stream相关的消费组，以消费组的组名为键
+    Consumer groups dictionary: name -> streamCG */
+    rax *cgroups;
 } stream;
 
 /* We define an iterator to iterate stream items in an abstract way, without
@@ -47,17 +49,22 @@ typedef struct streamIterator {
     unsigned char value_buf[LP_INTBUF_SIZE];
 } streamIterator;
 
-/* Consumer group. */
+/* Consumer group. 消费组*/
 typedef struct streamCG {
+    //该消费组已经确认的最后一个消息的ID
     streamID last_id;       /* Last delivered (not acknowledged) ID for this
                                group. Consumers that will just ask for more
                                messages will served with IDs > than this. */
+    //该消费组尚未确认的消息，并以消息ID为键，
+    //streamNACK（代表一个尚未确认的消息）为值
     rax *pel;               /* Pending entries list. This is a radix tree that
                                has every message delivered to consumers (without
                                the NOACK option) that was yet not acknowledged
                                as processed. The key of the radix tree is the
                                ID as a 64 bit big endian number, while the
                                associated value is a streamNACK structure.*/
+    //该消费组中所有的消费者，并以消费者的名称为键，
+    //streamConsumer（代表一个消费者）为值。
     rax *consumers;         /* A radix tree representing the consumers by name
                                and their associated representation in the form
                                of streamConsumer structures. */
@@ -78,10 +85,14 @@ typedef struct streamConsumer {
                                    itself, so the value is shared. */
 } streamConsumer;
 
-/* Pending (yet not acknowledged) message in a consumer group. */
+/* Pending (yet not acknowledged) message in a consumer group.
+ * 未确认消息 */
 typedef struct streamNACK {
-    mstime_t delivery_time;     /* Last time this message was delivered. */
+    mstime_t delivery_time;     /* 该消息最后发送给消费方的时间。 Last time this message was delivered. */
+    //该消息已经发送的次数（组内的成员可以通过xclaim命令获取某个消息的处理权，
+    //该消息已经分给组内另一个消费者但其并没有确认该消息）。
     uint64_t delivery_count;    /* Number of times this message was delivered.*/
+    //该消息当前归属的消费者。
     streamConsumer *consumer;   /* The consumer this message was delivered to
                                    in the last delivery. */
 } streamNACK;

@@ -46,11 +46,12 @@
 typedef struct quicklistNode {
     struct quicklistNode *prev;
     struct quicklistNode *next;
-    unsigned char *zl;
-    unsigned int sz;             /* ziplist size in bytes */
+    unsigned char *zl;           //指向该节点对应的ziplist结构
+    unsigned int sz;             /* 整个ziplist结构的大小 ziplist size in bytes */
     unsigned int count : 16;     /* count of items in ziplist */
-    unsigned int encoding : 2;   /* RAW==1 or LZF==2 */
-    unsigned int container : 2;  /* NONE==1 or ZIPLIST==2 */
+    unsigned int encoding : 2;   /* 采用的编码方式：1代表是原生的，2代表使用LZF进行压缩 RAW==1 or LZF==2 */
+    unsigned int container : 2;  /* 节点zl指向的容器类型 NONE==1 or ZIPLIST==2 */
+    //代表这个节点之前是否是压缩节点，若是，则在使用压缩节点前先进行解压缩，使用后需要重新压缩
     unsigned int recompress : 1; /* was this node previous compressed? */
     unsigned int attempted_compress : 1; /* node can't compress; too small */
     unsigned int extra : 10; /* more bits to steal for future usage */
@@ -105,30 +106,33 @@ typedef struct quicklistBookmark {
 typedef struct quicklist {
     quicklistNode *head;
     quicklistNode *tail;
-    unsigned long count;        /* total count of all entries in all ziplists */
+    unsigned long count;        /* 所有压缩表中所有条目的总数 total count of all entries in all ziplists */
     unsigned long len;          /* number of quicklistNodes */
-    int fill : QL_FILL_BITS;              /* fill factor for individual nodes */
-    unsigned int compress : QL_COMP_BITS; /* depth of end nodes not to compress;0=off */
+    int fill : QL_FILL_BITS;              /*单个节点的填充因子  fill factor for individual nodes */
+    unsigned int compress : QL_COMP_BITS; /* 终端节点深度不压缩； 0 = 关闭 
+                                           *depth of end nodes not to compress;0=off */
     unsigned int bookmark_count: QL_BM_BITS;
     quicklistBookmark bookmarks[];
 } quicklist;
 
+//quicklist中用于遍历的迭代器
 typedef struct quicklistIter {
     const quicklist *quicklist;
     quicklistNode *current;
     unsigned char *zi;
     long offset; /* offset in current ziplist */
-    int direction;
+    int direction; //迭代器方向
 } quicklistIter;
 
+//quicklistNode中ziplist中的一个节点
 typedef struct quicklistEntry {
-    const quicklist *quicklist;
-    quicklistNode *node;
-    unsigned char *zi;
-    unsigned char *value;
-    long long longval;
-    unsigned int sz;
-    int offset;
+    const quicklist *quicklist; //指向当前元素所在的quicklist
+    quicklistNode *node;        //指向当前元素所在的quicklistNode结构
+    unsigned char *zi;          //指向当前元素所在的ziplist
+    unsigned char *value;       //value指向该节点的字符串内容
+    long long longval;          //该节点的整型值
+    unsigned int sz;            //该节点的大小
+    int offset; //该节点相对于整个ziplist的偏移量，即该节点是ziplist第多少个entry。
 } quicklistEntry;
 
 #define QUICKLIST_HEAD 0

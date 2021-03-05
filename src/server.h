@@ -500,11 +500,11 @@ typedef enum
 /* A redis object, that is a type able to hold a string / list / set */
 
 /* The actual Redis Object */
-#define OBJ_STRING 0 /* String object. */
-#define OBJ_LIST 1   /* List object. */
-#define OBJ_SET 2    /* Set object. */
-#define OBJ_ZSET 3   /* Sorted set object. */
-#define OBJ_HASH 4   /* Hash object. */
+#define OBJ_STRING 0 /* 字符串 String object. */
+#define OBJ_LIST 1   /* 列表 List object. */
+#define OBJ_SET 2    /* 集合 Set object. */
+#define OBJ_ZSET 3   /* 有序集合 Sorted set object. */
+#define OBJ_HASH 4   /* 散列表 Hash object. */
 
 /* The "module" object type is a special one that signals that the object
  * is one directly managed by a Redis module. In this case the value points
@@ -654,17 +654,17 @@ typedef struct RedisModuleDigest
 /* Objects encoding. Some kind of objects like Strings and Hashes can be
  * internally represented in multiple ways. The 'encoding' field of the object
  * is set to one of this fields for this object. */
-#define OBJ_ENCODING_RAW 0        /* Raw representation */
-#define OBJ_ENCODING_INT 1        /* Encoded as integer */
-#define OBJ_ENCODING_HT 2         /* Encoded as hash table */
+#define OBJ_ENCODING_RAW 0        /* 简单动态字符串(sds) Raw representation */
+#define OBJ_ENCODING_INT 1        /* 整数 Encoded as integer */
+#define OBJ_ENCODING_HT 2         /* 字典/hash表 Encoded as hash table */
 #define OBJ_ENCODING_ZIPMAP 3     /* Encoded as zipmap */
 #define OBJ_ENCODING_LINKEDLIST 4 /* No longer used: old list encoding. */
-#define OBJ_ENCODING_ZIPLIST 5    /* Encoded as ziplist */
-#define OBJ_ENCODING_INTSET 6     /* Encoded as intset */
-#define OBJ_ENCODING_SKIPLIST 7   /* Encoded as skiplist */
-#define OBJ_ENCODING_EMBSTR 8     /* Embedded sds string encoding */
-#define OBJ_ENCODING_QUICKLIST 9  /* Encoded as linked list of ziplists */
-#define OBJ_ENCODING_STREAM 10    /* Encoded as a radix tree of listpacks */
+#define OBJ_ENCODING_ZIPLIST 5    /* 压缩列表 Encoded as ziplist */
+#define OBJ_ENCODING_INTSET 6     /* 整数集合 Encoded as intset */
+#define OBJ_ENCODING_SKIPLIST 7   /* 跳跃表 Encoded as skiplist */
+#define OBJ_ENCODING_EMBSTR 8     /* 简单动态字符串（sds）sds内存直接分配给robj.ptr Embedded sds string encoding */
+#define OBJ_ENCODING_QUICKLIST 9  /* 快速链表 Encoded as linked list of ziplists */
+#define OBJ_ENCODING_STREAM 10    /* stream Encoded as a radix tree of listpacks */
 
 #define LRU_BITS 24
 #define LRU_CLOCK_MAX ((1 << LRU_BITS) - 1) /* Max value of obj->lru */
@@ -677,10 +677,13 @@ typedef struct redisObject
 {
     unsigned type : 4;
     unsigned encoding : 4;
-    unsigned lru : LRU_BITS; /* LRU time (relative to global lru_clock) or
+    unsigned lru : LRU_BITS; /* 缓存淘汰使用
+                            * LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
-    int refcount;
+    //引用计数
+    int refcount; /* 共享对象时，refcount加1；
+                   * 删除对象时，refcount减1，当refcount值为0时释放对象空间。*/
     void *ptr;
 } robj;
 
@@ -717,13 +720,13 @@ typedef struct clientReplyBlock
  * database. The database number is the 'id' field in the structure. */
 typedef struct redisDb
 {
-    dict *dict;                   /* The keyspace for this DB */
-    dict *expires;                /* Timeout of keys with a timeout set */
+    dict *dict;                   /* 存储数据库所有键值对。 The keyspace for this DB */
+    dict *expires;                /* 存储键的过期时间 Timeout of keys with a timeout set */
     dict *blocking_keys;          /* Keys with clients waiting for data (BLPOP)*/
     dict *ready_keys;             /* Blocked keys that received a PUSH */
     dict *watched_keys;           /* WATCHED keys for MULTI/EXEC CAS */
-    int id;                       /* Database ID */
-    long long avg_ttl;            /* Average TTL, just for stats */
+    int id;                       /* 数据库序号，默认情况下Redis有16个数据库，id序号为0～15。 Database ID */
+    long long avg_ttl;            /* 存储数据库对象的平均TTL，用于统计 Average TTL, just for stats */
     unsigned long expires_cursor; /* Cursor of the active expire cycle. */
     list *defrag_later;           /* List of key names to attempt to defrag one by one, gradually. */
 } redisDb;
@@ -874,37 +877,37 @@ typedef struct
 
 typedef struct client
 {
-    uint64_t id; /* Client incremental unique ID. */
+    uint64_t id; /* 客户端唯一ID Client incremental unique ID. */
     connection *conn;
-    int resp;                           /* RESP protocol version. Can be 2 or 3. */
-    redisDb *db;                        /* Pointer to currently SELECTed DB. */
-    robj *name;                         /* As set by CLIENT SETNAME. */
-    sds querybuf;                       /* Buffer we use to accumulate client queries. */
+    int resp;                           /* RESP协议版本  RESP protocol version. Can be 2 or 3. */
+    redisDb *db;                        /* 客户端使用select命令选择的数据库对象 Pointer to currently SELECTed DB. */
+    robj *name;                         /* 客户端名称，可以使用命令CLIENT SETNAME设置 As set by CLIENT SETNAME. */
+    sds querybuf;                       /* 输入缓冲区，recv函数接收的客户端命令请求会暂时缓存在此缓冲区。 Buffer we use to accumulate client queries. */
     size_t qb_pos;                      /* The position we have read in querybuf. */
     sds pending_querybuf;               /* If this client is flagged as master, this buffer
-                               represents the yet not applied portion of the
-                               replication stream that we are receiving from
-                               the master. */
+                                        represents the yet not applied portion of the
+                                        replication stream that we are receiving from
+                                        the master. */
     size_t querybuf_peak;               /* Recent (100ms or more) peak of querybuf size. */
     int argc;                           /* Num of arguments of current command. */
     robj **argv;                        /* Arguments of current command. */
     int original_argc;                  /* Num of arguments of original command if arguments were rewritten. */
     robj **original_argv;               /* Arguments of original command if arguments were rewritten. */
     size_t argv_len_sum;                /* Sum of lengths of objects in argv list. */
-    struct redisCommand *cmd, *lastcmd; /* Last command executed. */
+    struct redisCommand *cmd, *lastcmd; /*待执行的客户端命令和上次执行的cmd Last command executed. */
     user *user;                         /* User associated with this connection. If the
-                               user is set to NULL the connection can do
-                               anything (admin). */
+                                        user is set to NULL the connection can do
+                                        anything (admin). */
     int reqtype;                        /* Request protocol type: PROTO_REQ_* */
     int multibulklen;                   /* Number of multi bulk arguments left to read. */
     long bulklen;                       /* Length of bulk argument in multi bulk request. */
-    list *reply;                        /* List of reply objects to send to the client. */
-    unsigned long long reply_bytes;     /* Tot bytes of objects in reply list. */
-    size_t sentlen;                     /* Amount of bytes already sent in the current
-                               buffer or object being sent. */
+    list *reply;                        /* 输出链表，存储待返回给客户端的命令回复数据。 List of reply objects to send to the client. */
+    unsigned long long reply_bytes;     /* 表示输出链表中所有节点的存储空间总和 Tot bytes of objects in reply list. */
+    //返回数据起点
+    size_t sentlen;                     /* A表示已返回给客户端的字节数；mount of bytes already sent in the current buffer or object being sent. */
     time_t ctime;                       /* Client creation time. */
     long duration;                      /* Current command duration. Used for measuring latency of blocking/non-blocking cmds */
-    time_t lastinteraction;             /* Time of the last interaction, used for timeout */
+    time_t lastinteraction;             /* 客户端上次与服务器交互的时间，以此实现客户端的超时处理。 Time of the last interaction, used for timeout */
     time_t obuf_soft_limit_reached_time;
     uint64_t flags;                           /* Client flags: CLIENT_* macros. */
     int authenticated;                        /* Needed when the default user requires auth. */
@@ -963,6 +966,7 @@ typedef struct client
     /* Response buffer */
     int bufpos;
     char buf[PROTO_REPLY_CHUNK_BYTES];
+    //返回数据终点
 } client;
 
 struct saveparam
@@ -1043,6 +1047,7 @@ typedef struct zskiplist
     int level;            //跳跃表的高度。
 } zskiplist;
 
+//Redis同时采用字典与跳跃表存储有序集合。
 typedef struct zset
 {
     dict *dict;
@@ -1681,13 +1686,14 @@ typedef struct
 
 typedef void redisCommandProc(client *c);
 typedef int redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, getKeysResult *result);
+//储存命令参数，供redis调用
 struct redisCommand
 {
     char *name;
-    redisCommandProc *proc;
-    int arity;
-    char *sflags;   /* Flags as string representation, one char per flag. */
-    uint64_t flags; /* The actual flags, obtained from the 'sflags' field. */
+    redisCommandProc *proc; //命令处理函数。
+    int arity; //命令参数数目 命令请求中，命令的名称本身也是一个参数
+    char *sflags;   /* 命令标志，例如标识命令时读命令还是写命令 Flags as string representation, one char per flag. */
+    uint64_t flags; /* 命令的二进制标志，服务器启动时解析sflags字段生成 The actual flags, obtained from the 'sflags' field. */
     /* Use a function to determine keys arguments in a command line.
      * Used for Redis Cluster redirect. */
     redisGetKeysProc *getkeys_proc;
@@ -1695,7 +1701,9 @@ struct redisCommand
     int firstkey; /* The first argument that's a key (0 = no keys) */
     int lastkey;  /* The last argument that's a key */
     int keystep;  /* The step between first and last key */
-    long long microseconds, calls, rejected_calls, failed_calls;
+    long long microseconds; 从服务器启动至今命令总的执行时间
+    long long calls; 从服务器启动至今命令执行的次数，用于统计。
+    long long rejected_calls, failed_calls;
     int id; /* Command ID. This is a progressive ID starting from 0 that
                    is assigned at runtime, and is used in order to check
                    ACLs. A connection is able to execute a given command if

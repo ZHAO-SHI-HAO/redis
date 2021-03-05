@@ -126,17 +126,18 @@ static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
     } else {
         /* Check for the case where we know we cannot find the value,
          * but do know the insert position. */
+        //value是否大于最大值
         if (value > _intsetGet(is,max)) {
             if (pos) *pos = intrev32ifbe(is->length);
             return 0;
-        } else if (value < _intsetGet(is,0)) {
+        } else if (value < _intsetGet(is,0)) {//是否小于最小值
             if (pos) *pos = 0;
             return 0;
         }
     }
-
+    //二分法
     while(max >= min) {
-        mid = ((unsigned int)min + (unsigned int)max) >> 1;
+        mid = ((unsigned int)min + (unsigned int)max) >> 1;//右进一位等于除2
         cur = _intsetGet(is,mid);
         if (value > cur) {
             min = mid+1;
@@ -253,9 +254,11 @@ intset *intsetRemove(intset *is, int64_t value, int *success) {
     return is;
 }
 
-/* Determine whether a value belongs to this set */
+/* Determine whether a value belongs to this set 
+ * 查询元素*/
 uint8_t intsetFind(intset *is, int64_t value) {
-    uint8_t valenc = _intsetValueEncoding(value);
+    uint8_t valenc = _intsetValueEncoding(value); //判断编码方式
+    //value的编码方式大于intset的编码方式 && 是否找到value
     return valenc <= intrev32ifbe(is->encoding) && intsetSearch(is,value,NULL);
 }
 

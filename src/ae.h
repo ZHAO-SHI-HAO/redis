@@ -95,18 +95,19 @@ typedef struct aeFiredEvent {
     int mask;
 } aeFiredEvent;
 
-/* State of an event based program */
+/* State of an event based program
+ * 事件 */
 typedef struct aeEventLoop {
     int maxfd;   /* highest file descriptor currently registered */
     int setsize; /* max number of file descriptors tracked */
     long long timeEventNextId;
-    aeFileEvent *events; /* Registered events */
-    aeFiredEvent *fired; /* Fired events */
-    aeTimeEvent *timeEventHead;
-    int stop;
-    void *apidata; /* This is used for polling API specific data */
-    aeBeforeSleepProc *beforesleep;
-    aeBeforeSleepProc *aftersleep;
+    aeFileEvent *events; /* 文件事件数组，存储已经注册的文件事件 Registered events */
+    aeFiredEvent *fired; /* 存储被触发的文件事件 Fired events */
+    aeTimeEvent *timeEventHead; //时间事件链表头节点
+    int stop; //事件循环是否结束
+    void *apidata; /* Redis底层可以使用4种I/O多路复用模型（kqueue、epoll等）, apidata是对这4种模型的进一步封装。This is used for polling API specific data */
+    aeBeforeSleepProc *beforesleep; // 进程阻塞之前会调用
+    aeBeforeSleepProc *aftersleep; // 进程因为某种原因被唤醒之后会调用
     int flags;
 } aeEventLoop;
 

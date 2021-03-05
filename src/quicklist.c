@@ -94,7 +94,7 @@ void _quicklistBookmarkDelete(quicklist *ql, quicklistBookmark *bm);
 /* Create a new quicklist.
  * Free with quicklistRelease(). */
 quicklist *quicklistCreate(void) {
-    struct quicklist *quicklist;
+    struct quicklist (*quicklist);
 
     quicklist = zmalloc(sizeof(*quicklist));
     quicklist->head = quicklist->tail = NULL;
@@ -483,6 +483,7 @@ REDIS_STATIC int _quicklistNodeAllowMerge(const quicklistNode *a,
  * Returns 1 if new head created. */
 int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
     quicklistNode *orig_head = quicklist->head;
+    // 头部节点仍然可以插入
     if (likely(
             _quicklistNodeAllowInsert(quicklist->head, quicklist->fill, sz))) {
         quicklist->head->zl =
@@ -493,6 +494,7 @@ int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
         node->zl = ziplistPush(ziplistNew(), value, sz, ZIPLIST_HEAD);
 
         quicklistNodeUpdateSz(node);
+        //将新节点作为头节点
         _quicklistInsertNodeBefore(quicklist, quicklist->head, node);
     }
     quicklist->count++;
@@ -1237,8 +1239,9 @@ quicklist *quicklistDup(quicklist *orig) {
 int quicklistIndex(const quicklist *quicklist, const long long idx,
                    quicklistEntry *entry) {
     quicklistNode *n;
-    unsigned long long accum = 0;
+    unsigned long long accum = 0; //已遍历过的元素数
     unsigned long long index;
+    //idx为负数时代表从尾部向头部的偏移量，此时forward为0
     int forward = idx < 0 ? 0 : 1; /* < 0 -> reverse, 0+ -> forward */
 
     initEntry(entry);
@@ -1261,7 +1264,8 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
         } else {
             D("Skipping over (%p) %u at accum %lld", (void *)n, n->count,
               accum);
-            accum += n->count;
+            //accum加上每个Node包含的元素数，（如一个Node的ziplist有count个元素）
+            accum += n->count; 
             n = forward ? n->next : n->prev;
         }
     }

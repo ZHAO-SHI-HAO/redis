@@ -2630,6 +2630,7 @@ void createSharedObjects(void) {
     shared.maxstring = sdsnew("maxstring");
 }
 
+//初始化配置
 void initServerConfig(void) {
     int j;
 
@@ -2638,7 +2639,9 @@ void initServerConfig(void) {
     server.runid[CONFIG_RUN_ID_SIZE] = '\0';
     changeReplicationId();
     clearReplicationId2();
-    server.hz = CONFIG_DEFAULT_HZ; /* Initialize it ASAP, even if it may get
+    server.hz = CONFIG_DEFAULT_HZ; /*尽快初始化它，即使它可能在加载配置后稍后更新。
+                                     初始化服务器之前，可以使用此值。 
+                                     Initialize it ASAP, even if it may get
                                       updated later after loading the config.
                                       This value may be used before the server
                                       is initialized. */
@@ -3406,7 +3409,8 @@ int populateCommandTableParseFlags(struct redisCommand *c, char *strflags) {
 }
 
 /* Populates the Redis Command Table starting from the hard coded list
- * we have on top of server.c file. */
+ * we have on top of server.c file. 
+ * 初始化命令字典*/
 void populateCommandTable(void) {
     int j;
     int numcommands = sizeof(redisCommandTable)/sizeof(struct redisCommand);

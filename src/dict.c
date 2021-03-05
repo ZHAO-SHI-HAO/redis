@@ -212,7 +212,17 @@ int dictTryExpand(dict *d, unsigned long size) {
  * since part of the hash table may be composed of empty spaces, it is not
  * guaranteed that this function will rehash even a single bucket, since it
  * will visit at max N*10 empty buckets in total, otherwise the amount of
- * work it does would be unbound and the function may block for a long time. */
+ * work it does would be unbound and the function may block for a long time. 
+ * rehash除了扩容时会触发，缩容时也会触发。 
+ * 执行插入、删除、查找、修改等操作前，都先判断当前字典rehash操作是否在进行中，
+ * 进行中则调用dictRehashStep函数进行rehash操作（每次只对1个节点进行rehash操作，共执行1次）。
+ * 除这些操作之外，当服务空闲时，如果当前字典也需要进行rehsh操作，
+ * 则会调用incrementallyRehash函数进行批量rehash操作
+ * （每次对100个节点进行rehash操作，共执行1毫秒）。
+ * 在经历N次rehash操作后，整个ht[0]的数据都会迁移到ht[1]中，
+ * 这样做的好处就把是本应集中处理的时间分散到了上百万、千万、亿次操作中，
+ * 所以其耗时可忽略不计
+ * n: rehash的步数，即调用一次此函数rehash几个节点（包含hash冲突后的链节点）*/
 int dictRehash(dict *d, int n) {
     int empty_visits = n*10; /* Max number of empty buckets to visit. */
     if (!dictIsRehashing(d)) return 0;
@@ -245,7 +255,9 @@ int dictRehash(dict *d, int n) {
         d->rehashidx++;
     }
 
-    /* Check if we already rehashed the whole table... */
+    /* Check if we already rehashed the whole table...
+     * rehash操作后，清空ht[0]，然后对调一下ht[1]与ht[0]的值，
+     * 并把字典中rehashidx字段标识为-1 */
     if (d->ht[0].used == 0) {
         zfree(d->ht[0].table);
         d->ht[0] = d->ht[1];
@@ -288,8 +300,11 @@ int dictRehashMilliseconds(dict *d, int ms) {
  *
  * This function is called by common lookup or update operations in the
  * dictionary so that the hash table automatically migrates from H1 to H2
- * while it is actively used. */
+ * while it is actively used. 
+ * 每次执行一步rehash*/
 static void _dictRehashStep(dict *d) {
+    //如果当前字典有安全迭代器运行，则不进行渐进式rehash操作，
+    //rehash操作暂停，字典中数据就不会被重复遍历，由此确保了读取数据的准确性。
     if (d->pauserehash == 0) dictRehash(d,1);
 }
 
@@ -520,8 +535,9 @@ dictEntry *dictFind(dict *d, const void *key)
     uint64_t h, idx, table;
 
     if (dictSize(d) == 0) return NULL; /* dict is empty */
-    if (dictIsRehashing(d)) _dictRehashStep(d);
+    if (dictIsRehashing(d)) _dictRehashStep(d); //分而治之，每次查询操作都进行一次rehash
     h = dictHashKey(d, key);
+    //遍历dict中的两个hash表
     for (table = 0; table <= 1; table++) {
         idx = h & d->ht[table].sizemask;
         he = d->ht[table].table[idx];
@@ -530,6 +546,7 @@ dictEntry *dictFind(dict *d, const void *key)
                 return he;
             he = he->next;
         }
+        //如果没有进行rehash操作，就不用查询table[1]，table[0]中查询不到就直接返回null
         if (!dictIsRehashing(d)) return NULL;
     }
     return NULL;
@@ -897,6 +914,7 @@ static unsigned long rev(unsigned long v) {
  *    we are sure we don't miss keys moving during rehashing.
  * 3) The reverse cursor is somewhat hard to understand at first, but this
  *    comment is supposed to help.
+ * 只是渐进式迭代的其中一各step
  */
 unsigned long dictScan(dict *d,
                        unsigned long v,
@@ -927,7 +945,9 @@ unsigned long dictScan(dict *d,
         }
 
         /* Set unmasked bits so incrementing the reversed cursor
-         * operates on the masked bits */
+         * operates on the masked bits 
+         * 为了兼容迭代间隔期间可能发生的缩容与扩容操作，
+         * 每次迭代时都会对v变量（游标值）进行修改，以确保迭代出的数据无遗漏，*/
         v |= ~m0;
 
         /* Increment the reverse cursor */
@@ -936,13 +956,13 @@ unsigned long dictScan(dict *d,
         v = rev(v);
 
     } else {
-        t0 = &d->ht[0];
-        t1 = &d->ht[1];
+        t0 = &(d->ht[0]);
+        t1 = &(d->ht[1]);
 
         /* Make sure t0 is the smaller and t1 is the bigger table */
         if (t0->size > t1->size) {
-            t0 = &d->ht[1];
-            t1 = &d->ht[0];
+            t0 = &(d->ht[1]);
+            t1 = &(d->ht[0]);
         }
 
         m0 = t0->sizemask;
@@ -958,7 +978,8 @@ unsigned long dictScan(dict *d,
         }
 
         /* Iterate over indices in larger table that are the expansion
-         * of the index pointed to by the cursor in the smaller table */
+         * of the index pointed to by the cursor in the smaller table 
+         * 遍历较大表中的索引，这些索引是较小表中光标指向的索引的扩展 */
         do {
             /* Emit entries at cursor */
             if (bucketfn) bucketfn(privdata, &t1->table[v & m1]);

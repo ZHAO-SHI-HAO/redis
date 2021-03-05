@@ -103,14 +103,17 @@ typedef struct dict {
 /* If safe is set to 1 this is a safe iterator, that means, you can call
  * dictAdd, dictFind, and other functions against the dictionary even while
  * iterating. Otherwise it is a non safe iterator, and only dictNext()
- * should be called while iterating. */
+ * should be called while iterating.
+ *  */
 typedef struct dictIterator {
     dict *d;
     long index;
-    int table, safe;
+    int table, safe; //table索引，是否是安全迭代器
     dictEntry *entry, *nextEntry;
-    /* unsafe iterator fingerprint for misuse detection. */
-    long long fingerprint;
+    /* unsafe iterator fingerprint for misuse detection. 
+    * 对字典进行修改、添加、删除、查找操作都会调用dictRehashStep函数，
+    * 进行渐进式reahash操作，从而导致fingerprint值发生改变。*/
+    long long fingerprint; //字典指纹
 } dictIterator;
 
 typedef void (dictScanFunction)(void *privdata, const dictEntry *de);

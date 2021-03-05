@@ -1,5 +1,5 @@
 /* Listpack -- A lists of strings serialization format
- *
+ * 字符串列表的序列化格式
  * This file implements the specification you can find at:
  *
  *  https://github.com/antirez/listpack
@@ -649,7 +649,8 @@ unsigned char *lpGet(unsigned char *p, int64_t *count, unsigned char *intbuf) {
  * For deletion operations ('ele' set to NULL) 'newp' is set to the next
  * element, on the right of the deleted one, or to NULL if the deleted element
  * was the last one. */
-unsigned char *lpInsert(unsigned char *lp, unsigned char *ele, uint32_t size, unsigned char *p, int where, unsigned char **newp) {
+unsigned char *lpInsert(unsigned char *lp, unsigned char *ele, uint32_t size,
+                        unsigned char *p, int where, unsigned char **newp) {
     unsigned char intenc[LP_MAX_INT_ENCODING_LEN];
     unsigned char backlen[LP_MAX_BACKLEN_SIZE];
 

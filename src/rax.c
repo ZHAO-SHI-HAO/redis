@@ -186,8 +186,8 @@ static inline void raxStackFree(raxStack *ts) {
  * associated data pointer.
  * Returns the new node pointer. On out of memory NULL is returned. */
 raxNode *raxNewNode(size_t children, int datafield) {
-    size_t nodesize = sizeof(raxNode)+children+raxPadding(children)+
-                      sizeof(raxNode*)*children;
+    size_t nodesize = sizeof(raxNode) + children + raxPadding(children) +
+                      sizeof(raxNode*) * children;
     if (datafield) nodesize += sizeof(void*);
     raxNode *node = rax_malloc(nodesize);
     if (node == NULL) return NULL;
@@ -238,7 +238,7 @@ void raxSetData(raxNode *n, void *data) {
 /* Get the node auxiliary data. */
 void *raxGetData(raxNode *n) {
     if (n->isnull) return NULL;
-    void **ndata =(void**)((char*)n+raxNodeCurrentLength(n)-sizeof(void*));
+    void **ndata =(void**)((char*)n + raxNodeCurrentLength(n) - sizeof(void*));
     void *data;
     memcpy(&data,ndata,sizeof(data));
     return data;
@@ -456,9 +456,11 @@ raxNode *raxCompressNode(raxNode *n, unsigned char *s, size_t len, raxNode **chi
  * means that the current node represents the key (that is, none of the
  * compressed node characters are needed to represent the key, just all
  * its parents nodes). */
-static inline size_t raxLowWalk(rax *rax, unsigned char *s, size_t len, raxNode **stopnode, raxNode ***plink, int *splitpos, raxStack *ts) {
+static inline size_t raxLowWalk(rax *rax, unsigned char *s, size_t len,
+                                raxNode **stopnode, raxNode ***plink, 
+                                int *splitpos, raxStack *ts) {
     raxNode *h = rax->head;
-    raxNode **parentlink = &rax->head;
+    raxNode **parentlink = &(rax->head);
 
     size_t i = 0; /* Position in the string. */
     size_t j = 0; /* Position in the node children (or bytes if compressed).*/
@@ -506,9 +508,12 @@ static inline size_t raxLowWalk(rax *rax, unsigned char *s, size_t len, raxNode 
  * function returns 0 as well but sets errno to ENOMEM, otherwise errno will
  * be set to 0.
  */
-int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old, int overwrite) {
+int raxGenericInsert(rax *rax, unsigned char *s, size_t len, 
+                     void *data, void **old, int overwrite) {
     size_t i;
-    int j = 0; /* Split position. If raxLowWalk() stops in a compressed
+    int j = 0; /* 分割位置。 如果raxLowWalk（）在压缩节点中停止，
+                  则索引“ j”表示我们在压缩节点中停止的字符，即拆分该节点以进行插入的位置。
+                  Split position. If raxLowWalk() stops in a compressed
                   node, the index 'j' represents the char we stopped within the
                   compressed node, that is, the position where to split the
                   node for insertion. */
@@ -524,7 +529,8 @@ int raxGenericInsert(rax *rax, unsigned char *s, size_t len, void *data, void **
      * data pointer. */
     if (i == len && (!h->iscompr || j == 0 /* not in the middle if j is 0 */)) {
         debugf("### Insert: node representing key exists\n");
-        /* Make space for the value pointer if needed. */
+        /* Make space for the value pointer if needed.
+         * 查看之间是否储存value，没有则申请空间 */
         if (!h->iskey || (h->isnull && overwrite)) {
             h = raxReallocForData(h,data);
             if (h) memcpy(parentlink,&h,sizeof(h));
@@ -920,7 +926,7 @@ void *raxFind(rax *rax, unsigned char *s, size_t len) {
 
     debugf("### Lookup: %.*s\n", (int)len, s);
     int splitpos = 0;
-    size_t i = raxLowWalk(rax,s,len,&h,NULL,&splitpos,NULL);
+    size_t i = raxLowWalk(rax, s, len, &h, NULL, &splitpos, NULL);
     if (i != len || (h->iscompr && splitpos != 0) || !h->iskey)
         return raxNotFound;
     return raxGetData(h);
