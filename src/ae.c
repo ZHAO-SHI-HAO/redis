@@ -331,7 +331,11 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
     return processed;
 }
 
-/* Process every pending time event, then every pending file event
+/* 处理每个待处理的时间事件，然后处理每个待处理的文件事件
+ *（可以通过刚刚处理的时间事件回调来注册）。
+ * 没有特殊标志的情况下，该功能会休眠，直到触发某些文件事件或下次发生事件（如果有）时为止。 
+ * 包含定时循环事件和外部事件
+ * Process every pending time event, then every pending file event
  * (that may be registered by time event callbacks just processed).
  * Without special flags the function sleeps until some file event
  * fires, or when the next time event occurs (if any).
@@ -482,6 +486,8 @@ int aeWait(int fd, int mask, long long milliseconds) {
     }
 }
 
+ 
+// 开启事件循环等待事件发生
 void aeMain(aeEventLoop *eventLoop) {
     eventLoop->stop = 0;
     while (!eventLoop->stop) {

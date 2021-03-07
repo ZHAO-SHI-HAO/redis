@@ -2337,7 +2337,9 @@ void whileBlockedCron() {
 
 extern int ProcessingEventsWhileBlocked;
 
-/* This function gets called every time Redis is entering the
+/* 每次事件循环阻塞等待文件事件之前执行，主要执行一些不是很费时的操作，
+ * 比如过期键删除操作，向客户端返回命令回复等。
+ * This function gets called every time Redis is entering the
  * main loop of the event driven library, that is, before to sleep
  * for ready file descriptors.
  *
@@ -2610,7 +2612,7 @@ void createSharedObjects(void) {
     shared.getack = createStringObject("GETACK",6);
     shared.special_asterick = createStringObject("*",1);
     shared.special_equals = createStringObject("=",1);
-
+    // 创建0~10000整型对象
     for (j = 0; j < OBJ_SHARED_INTEGERS; j++) {
         shared.integers[j] =
             makeObjectShared(createObject(OBJ_STRING,(void*)(long)j));
@@ -3008,7 +3010,8 @@ void checkTcpBacklogSettings(void) {
  * error, at least one of the server.bindaddr addresses was
  * impossible to bind, or no bind addresses were specified in the server
  * configuration but the function is not able to bind * for at least
- * one of the IPv4 or IPv6 protocols. */
+ * one of the IPv4 or IPv6 protocols. 
+ * 创建socket并启动监听*/
 int listenToPort(int port, int *fds, int *count) {
     int j;
     char **bindaddr = server.bindaddr;
@@ -3025,11 +3028,12 @@ int listenToPort(int port, int *fds, int *count) {
         char* addr = bindaddr[j];
         int optional = *addr == '-';
         if (optional) addr++;
-        if (strchr(addr,':')) {
+        if (strchr(addr,':')) { //判断ip地址种类
             /* Bind IPv6 address. */
             fds[*count] = anetTcp6Server(server.neterr,port,addr,server.tcp_backlog);
         } else {
-            /* Bind IPv4 address. */
+            /* Bind IPv4 address. 
+             * 创建socket并启动监听，文件描述符储存在sds数组作为返回参数*/
             fds[*count] = anetTcpServer(server.neterr,port,addr,server.tcp_backlog);
         }
         if (fds[*count] == ANET_ERR) {
@@ -3044,7 +3048,7 @@ int listenToPort(int port, int *fds, int *count) {
                 continue;
             return C_ERR;
         }
-        anetNonBlock(NULL,fds[*count]);
+        anetNonBlock(NULL,fds[*count]); //设置socket非阻塞 IO多路复用
         anetCloexec(fds[*count]);
         (*count)++;
     }
@@ -3164,7 +3168,7 @@ void initServer(void) {
             strerror(errno));
         exit(1);
     }
-    server.db = zmalloc(sizeof(redisDb)*server.dbnum);
+    server.db = zmalloc(sizeof(redisDb) * server.dbnum);
 
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
@@ -3268,7 +3272,8 @@ void initServer(void) {
      * domain sockets. */
     for (j = 0; j < server.ipfd_count; j++) {
         if (aeCreateFileEvent(server.el, server.ipfd[j], AE_READABLE,
-            acceptTcpHandler,NULL) == AE_ERR)
+            acceptTcpHandler,NULL) == AE_ERR) // 创建文件事件，为监听socket的读事件，事件处理函数为acceptTcpHandler，
+                                              //即当客户端发起socket连接请求时，服务端会执行函数acceptTcpHandler处理。
             {
                 serverPanic(
                     "Unrecoverable error creating server.ipfd file event.");
@@ -3612,7 +3617,8 @@ void preventCommandReplication(client *c) {
     c->flags |= CLIENT_PREVENT_REPL_PROP;
 }
 
-/* Call() is the core of Redis execution of a command.
+/* Call（）是Redis执行命令的核心。
+ * Call() is the core of Redis execution of a command.
  *
  * The following flags can be passed:
  * CMD_CALL_NONE        No flags.
@@ -3890,7 +3896,8 @@ static int cmdHasMovableKeys(struct redisCommand *cmd) {
             cmd->flags & CMD_MODULE_GETKEYS;
 }
 
-/* If this function gets called we already read a whole
+/* 处理该命令请求
+ * If this function gets called we already read a whole
  * command, arguments are in the client argv/argc fields.
  * processCommand() execute the command or prepare the
  * server for a bulk read from the client.
@@ -3905,7 +3912,7 @@ int processCommand(client *c) {
      * go through checking for replication and QUIT will cause trouble
      * when FORCE_REPLICATION is enabled and would be implemented in
      * a regular command proc. */
-    if (!strcasecmp(c->argv[0]->ptr,"quit")) {
+    if (!strcasecmp(c->argv[0]->ptr,"quit")) { //退出命令，执行退出程序
         addReply(c,shared.ok);
         c->flags |= CLIENT_CLOSE_AFTER_REPLY;
         return C_ERR;
@@ -3913,7 +3920,7 @@ int processCommand(client *c) {
 
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
-    c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
+    c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr); //寻找命令并判断
     if (!c->cmd) {
         sds args = sdsempty();
         int i;
@@ -3924,7 +3931,7 @@ int processCommand(client *c) {
         sdsfree(args);
         return C_OK;
     } else if ((c->cmd->arity > 0 && c->cmd->arity != c->argc) ||
-               (c->argc < -c->cmd->arity)) {
+               (c->argc < -c->cmd->arity)) { //校验命令参数数目是否合法
         rejectCommandFormat(c,"wrong number of arguments for '%s' command",
             c->cmd->name);
         return C_OK;
@@ -3946,7 +3953,7 @@ int processCommand(client *c) {
     int auth_required = (!(DefaultUser->flags & USER_FLAG_NOPASS) ||
                           (DefaultUser->flags & USER_FLAG_DISABLED)) &&
                         !c->authenticated;
-    if (auth_required) {
+    if (auth_required) { //客户端认证校验
         /* AUTH and HELLO and no auth modules are valid even in
          * non-authenticated state. */
         if (!(c->cmd->flags & CMD_NO_AUTH)) {
@@ -4005,7 +4012,7 @@ int processCommand(client *c) {
      * the event loop since there is a busy Lua script running in timeout
      * condition, to avoid mixing the propagation of scripts with the
      * propagation of DELs due to eviction. */
-    if (server.maxmemory && !server.lua_timedout) {
+    if (server.maxmemory && !server.lua_timedout) { //超过最大内存限制
         int out_of_memory = (performEvictions() == EVICT_FAIL);
         /* performEvictions may flush slave output buffers. This may result
          * in a slave, that may be the active client, to be freed. */
@@ -4149,7 +4156,7 @@ int processCommand(client *c) {
         return C_OK;       
     }
 
-    /* Exec the command */
+    /* 执行命令Exec the command */
     if (c->flags & CLIENT_MULTI &&
         c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
         c->cmd->proc != multiCommand && c->cmd->proc != watchCommand &&

@@ -86,6 +86,8 @@ int anetSetBlock(char *err, int fd, int non_block) {
     return ANET_OK;
 }
 
+/* 注意：所有创建的socket都会设置为非阻塞模式，原因在于Redis使用了IO多路复用模式，
+ * 其要求socket读写必须是非阻塞的，函数anetNonBlock通过系统调用fcntl设置socket非阻塞模式。*/
 int anetNonBlock(char *err, int fd) {
     return anetSetBlock(err,fd,1);
 }

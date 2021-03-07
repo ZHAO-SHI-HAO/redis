@@ -107,6 +107,7 @@ static void clientSetDefaultAuth(client *c) {
                        !(c->user->flags & USER_FLAG_DISABLED);
 }
 
+//创建客户端对象并初始化对象各字段
 client *createClient(connection *conn) {
     client *c = zmalloc(sizeof(client));
 
@@ -115,11 +116,11 @@ client *createClient(connection *conn) {
      * in the context of a client. When commands are executed in other
      * contexts (for instance a Lua script) we need a non connected client. */
     if (conn) {
-        connNonBlock(conn);
-        connEnableTcpNoDelay(conn);
-        if (server.tcpkeepalive)
+        connNonBlock(conn); //设置socket为非阻塞模式
+        connEnableTcpNoDelay(conn); //设置TCP_NODELAY选项, tcp数据立即发送
+        if (server.tcpkeepalive) //如果服务端配置了tcpkeepalive，则设置SO_KEEPLIVE
             connKeepAlive(conn,server.tcpkeepalive);
-        connSetReadHandler(conn, readQueryFromClient);
+        connSetReadHandler(conn, readQueryFromClient); //服务器接收到命令请求时，执行readQueryFromClient
         connSetPrivateData(conn, c);
     }
 
@@ -277,7 +278,8 @@ int prepareClientToWrite(client *c) {
  * Low level functions to add more data to output buffers.
  * -------------------------------------------------------------------------- */
 
-/* Attempts to add the reply to the static buffer in the client struct.
+/* 添加字符串到输出缓冲区
+ * Attempts to add the reply to the static buffer in the client struct.
  * Returns C_ERR if the buffer is full, or the reply list is not empty,
  * in which case the reply must be added to the reply list. */
 int _addReplyToBuffer(client *c, const char *s, size_t len) {
@@ -1083,6 +1085,10 @@ static void acceptCommonHandler(connection *conn, int flags, char *ip) {
     }
 }
 
+/* acceptTcpHandler函数主要做了3件事：
+ * ① 接受（accept）客户端的连接请求；
+ * ② 创建客户端对象，并初始化对象各字段；
+ * ③ 创建文件事件。步骤②与步骤③由函数createClient实现，输入参数fd为接受客户端连接请求后生成的socket文件描述符。*/
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;
     char cip[NET_IP_STR_LEN];
@@ -1792,7 +1798,8 @@ static void setProtocolError(const char *errstr, client *c) {
     c->flags |= (CLIENT_CLOSE_AFTER_REPLY|CLIENT_PROTOCOL_ERROR);
 }
 
-/* Process the query buffer for client 'c', setting up the client argument
+/* 解析命令字符串（client中的quertbuf）
+ * Process the query buffer for client 'c', setting up the client argument
  * vector for command execution. Returns C_OK if after running the function
  * the client has a well-formed ready to be processed command, otherwise
  * C_ERR if there is still to read more buffer to get the full command.
@@ -2101,6 +2108,9 @@ void processInputBuffer(client *c) {
     }
 }
 
+// 阅读并执行来自客户端的查询 
+// 读取socket数据存储到客户端对象的输入缓冲区，
+// 并调用函数processInputBuffer解析命令请求
 void readQueryFromClient(connection *conn) {
     client *c = connGetPrivateData(conn);
     int nread, readlen;

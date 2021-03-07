@@ -400,7 +400,7 @@ void loadServerConfigFromString(char *config) {
         linenum = i+1;
         lines[i] = sdstrim(lines[i]," \t\r\n");
 
-        /* Skip comments and blank lines */
+        /* Skip comments and blank lines 跳过注释和空行 */
         if (lines[i][0] == '#' || lines[i][0] == '\0') continue;
 
         /* Split into arguments */

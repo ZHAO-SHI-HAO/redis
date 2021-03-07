@@ -89,7 +89,7 @@ typedef struct dictht {
 } dictht;
 
 typedef struct dict {
-    dictType *type;
+    dictType *type; //储存字典操作函数指针
     void *privdata; //该字典所依赖的数据,私有数据，配合type字段指向的函数一起使用。
     //是个大小为2的数组，该数组存储的元素类型为dictht，
     //虽然有两个元素，但一般情况下只会使用ht[0]，
