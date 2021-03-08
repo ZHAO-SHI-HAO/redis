@@ -71,7 +71,7 @@ static int checkStringLength(client *c, long long size) {
 #define OBJ_EXAT (1<<6)            /* Set if timestamp in second is given */
 #define OBJ_PXAT (1<<7)            /* Set if timestamp in ms is given */
 #define OBJ_PERSIST (1<<8)         /* Set if we need to remove the ttl */
-
+// 将key-value设置到数据库。
 void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0, when = 0; /* initialized to avoid any harmness warning */
 
@@ -95,7 +95,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     }
 
     if ((flags & OBJ_SET_NX && lookupKeyWrite(c->db,key) != NULL) ||
-        (flags & OBJ_SET_XX && lookupKeyWrite(c->db,key) == NULL))
+        (flags & OBJ_SET_XX && lookupKeyWrite(c->db,key) == NULL)) //根据之前所赋值的flags来确定现在是否可以将key-value设置成功。
     {
         addReply(c, abort_reply ? abort_reply : shared.null[c->resp]);
         return;
@@ -108,7 +108,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     genericSetKey(c,c->db,key, val,flags & OBJ_KEEPTTL,1);
     server.dirty++;
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
-    if (expire) {
+    if (expire) { //设置超时时间
         setExpire(c,c->db,key,when);
         notifyKeyspaceEvent(NOTIFY_GENERIC,"expire",key,c->db->id);
 
@@ -152,7 +152,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
 
 #define COMMAND_GET 0
 #define COMMAND_SET 1
-/*
+/* 解析参数
  * The parseExtendedStringArgumentsOrReply() function performs the common validation for extended
  * string arguments used in SET and GET command.
  *
@@ -171,7 +171,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
 int parseExtendedStringArgumentsOrReply(client *c, int *flags, int *unit, robj **expire, int command_type) {
 
     int j = command_type == COMMAND_GET ? 2 : 3;
-    for (; j < c->argc; j++) {
+    for (; j < c->argc; j++) { //第4个参数开始依次向后通过for循环解析
         char *opt = c->argv[j]->ptr;
         robj *next = (j == c->argc-1) ? NULL : c->argv[j+1];
 
@@ -252,12 +252,14 @@ int parseExtendedStringArgumentsOrReply(client *c, int *flags, int *unit, robj *
     return C_OK;
 }
 
-/* SET key value [NX] [XX] [KEEPTTL] [GET] [EX <seconds>] [PX <milliseconds>]
+/* set命令用于将key-value设置到数据库。如果key已经设置，则set会用新值覆盖旧值，不管原value是何种类型，
+ * 如果在设置时不指定EX或PX参数，set命令会清除原有超时时间。
+ * SET key value [NX] [XX] [KEEPTTL] [GET] [EX <seconds>] [PX <milliseconds>]
  *     [EXAT <seconds-timestamp>][PXAT <milliseconds-timestamp>] */
 void setCommand(client *c) {
-    robj *expire = NULL;
-    int unit = UNIT_SECONDS;
-    int flags = OBJ_NO_FLAGS;
+    robj *expire = NULL; //超时时间，robj类型。
+    int unit = UNIT_SECONDS;//字符串的超时时间单位 s or ms
+    int flags = OBJ_NO_FLAGS; //一个二进制串，程序中根据此值来确定key是否应该被设置到数据库。
 
     if (parseExtendedStringArgumentsOrReply(c,&flags,&unit,&expire,COMMAND_SET) != C_OK) {
         return;
@@ -266,17 +268,19 @@ void setCommand(client *c) {
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     setGenericCommand(c,flags,c->argv[1],c->argv[2],expire,unit,NULL,NULL);
 }
-
+ //将key-value设置到数据库，当且仅当key不存在时。不需要解析额外参数。
 void setnxCommand(client *c) {
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     setGenericCommand(c,OBJ_SET_NX,c->argv[1],c->argv[2],NULL,0,shared.cone,shared.czero);
 }
 
+//将key-value设置到数据库，并且指定key的超时秒数。不需要解析额外参数。
 void setexCommand(client *c) {
     c->argv[3] = tryObjectEncoding(c->argv[3]);
     setGenericCommand(c,OBJ_EX,c->argv[1],c->argv[3],c->argv[2],UNIT_SECONDS,NULL,NULL);
 }
 
+//将key-value设置到数据库，并且指定key的超时毫秒数。不需要解析额外参数。
 void psetexCommand(client *c) {
     c->argv[3] = tryObjectEncoding(c->argv[3]);
     setGenericCommand(c,OBJ_PX,c->argv[1],c->argv[3],c->argv[2],UNIT_MILLISECONDS,NULL,NULL);
@@ -421,6 +425,8 @@ void getsetCommand(client *c) {
     rewriteClientCommandArgument(c,0,shared.set);
 }
 
+/* 置value的部分子串，设置时将值从偏移量offset开始覆盖成value值。
+ * 如果偏移值大于原值的长度，则偏移量之前的字符串由“\x00”填充。*/
 void setrangeCommand(client *c) {
     robj *o;
     long offset;
@@ -548,7 +554,8 @@ void msetGenericCommand(client *c, int nx) {
         return;
     }
 
-    /* Handle the NX flag. The MSETNX semantic is to return zero and don't
+    /* 遍历每个key在数据库中是否存在，当有任意一个key存在时，表示参数不合法，会报错退出
+     * Handle the NX flag. The MSETNX semantic is to return zero and don't
      * set anything if at least one key already exists. */
     if (nx) {
         for (j = 1; j < c->argc; j += 2) {
@@ -568,6 +575,7 @@ void msetGenericCommand(client *c, int nx) {
     addReply(c, nx ? shared.cone : shared.ok);
 }
 
+//一次性设置多个字符串
 void msetCommand(client *c) {
     msetGenericCommand(c,0);
 }
@@ -576,17 +584,21 @@ void msetnxCommand(client *c) {
     msetGenericCommand(c,1);
 }
 
+//原子性计数
+//incr:要增加的值，可以是正整数，也可以是负整数
 void incrDecrCommand(client *c, long long incr) {
     long long value, oldvalue;
     robj *o, *new;
 
+    //先从数据库中获取key。如果key不存在则设为默认值0；
     o = lookupKeyWrite(c->db,c->argv[1]);
     if (checkType(c,o,OBJ_STRING)) return;
+    //如果key存在则判断原value值是否为long类型，如果不是，报错退出
     if (getLongLongFromObjectOrReply(c,o,&value,NULL) != C_OK) return;
 
     oldvalue = value;
     if ((incr < 0 && oldvalue < 0 && incr < (LLONG_MIN-oldvalue)) ||
-        (incr > 0 && oldvalue > 0 && incr > (LLONG_MAX-oldvalue))) {
+        (incr > 0 && oldvalue > 0 && incr > (LLONG_MAX-oldvalue))) { //判断增加后的值是否越界
         addReplyError(c,"increment or decrement would overflow");
         return;
     }
@@ -595,10 +607,10 @@ void incrDecrCommand(client *c, long long incr) {
     if (o && o->refcount == 1 && o->encoding == OBJ_ENCODING_INT &&
         (value < 0 || value >= OBJ_SHARED_INTEGERS) &&
         value >= LONG_MIN && value <= LONG_MAX)
-    {
+    { //robj的ptr是可以直接存储一个long值的，这里只要robj没有被引用且不是共享对象，ptr直接赋值为value值。
         new = o;
         o->ptr = (void*)((long)value);
-    } else {
+    } else { //不满足条件，则创建robj类型的new变量，将new设置或覆盖掉数据库原key-value即完成了计数器操作。
         new = createStringObjectFromLongLongForValue(value);
         if (o) {
             dbOverwrite(c->db,c->argv[1],new);
@@ -669,6 +681,7 @@ void incrbyfloatCommand(client *c) {
     rewriteClientCommandArgument(c,3,shared.keepttl);
 }
 
+//将value追加到原值的末尾，如果key不存在，此命令等同于set keyvalue命令。
 void appendCommand(client *c) {
     size_t totlen;
     robj *o, *append;
@@ -681,14 +694,14 @@ void appendCommand(client *c) {
         incrRefCount(c->argv[2]);
         totlen = stringObjectLen(c->argv[2]);
     } else {
-        /* Key exists, check type */
-        if (checkType(c,o,OBJ_STRING))
+        /* Key exists, check type 只有value为字符串时才可以追加字符串，数字是不可以追加的，所以当key存在时，首先判断下value的类型是否为string类型。如果不为string类型时会报错。*/
+        if (checkType(c,o,OBJ_STRING)) 
             return;
 
         /* "append" is an argument, so always an sds */
         append = c->argv[2];
         totlen = stringObjectLen(o)+sdslen(append->ptr);
-        if (checkStringLength(c,totlen) != C_OK)
+        if (checkStringLength(c,totlen) != C_OK) //追加后的字符串长度必须小于512MB，否则会报错。
             return;
 
         /* Append the value */

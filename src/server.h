@@ -673,10 +673,12 @@ typedef struct RedisModuleDigest
 #define OBJ_SHARED_REFCOUNT INT_MAX       /* Global object never destroyed. */
 #define OBJ_STATIC_REFCOUNT (INT_MAX - 1) /* Object allocated in the stack. */
 #define OBJ_FIRST_SPECIAL_REFCOUNT OBJ_STATIC_REFCOUNT
+
+//key-value中的value
 typedef struct redisObject
 {
-    unsigned type : 4;
-    unsigned encoding : 4;
+    unsigned type : 4; //Redis对象类型
+    unsigned encoding : 4; //对象内部储存的编码
     unsigned lru : LRU_BITS; /* 缓存淘汰使用
                             * LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
@@ -684,8 +686,8 @@ typedef struct redisObject
     //引用计数
     int refcount; /* 共享对象时，refcount加1；
                    * 删除对象时，refcount减1，当refcount值为0时释放对象空间。*/
-    void *ptr;
-} robj;
+    void *ptr;    //指向value的值 robj的ptr是可以直接存储一个long值的 甚至是各种redis的数据结构
+} robj; 
 
 /* The a string name for an object's type as listed above
  * Native types are checked against the OBJ_STRING, OBJ_LIST, OBJ_* defines,
@@ -715,20 +717,22 @@ typedef struct clientReplyBlock
     char buf[];
 } clientReplyBlock;
 
-/* Redis database representation. There are multiple databases identified
+/* Redis是内存数据库，除了需要redisObject对基础数据结构封装外，
+ * 还需要一个结构体对数据库进行封装，用来管理数据库相关数据和实现相关操作，这个结构体就是redisDb。
+ * Redis database representation. There are multiple databases identified
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
 typedef struct redisDb
 {
-    dict *dict;                   /* 存储数据库所有键值对。 The keyspace for this DB */
+    dict *dict;                   /* 键空间字典 存储数据库所有键值对。 The keyspace for this DB */
     dict *expires;                /* 存储键的过期时间 Timeout of keys with a timeout set */
-    dict *blocking_keys;          /* Keys with clients waiting for data (BLPOP)*/
-    dict *ready_keys;             /* Blocked keys that received a PUSH */
-    dict *watched_keys;           /* WATCHED keys for MULTI/EXEC CAS */
+    dict *blocking_keys;          /* 阻塞的key Keys with clients waiting for data (BLPOP)*/
+    dict *ready_keys;             /* 准备好的key Blocked keys that received a PUSH */
+    dict *watched_keys;           /* 执行事务的key WATCHED keys for MULTI/EXEC CAS */
     int id;                       /* 数据库序号，默认情况下Redis有16个数据库，id序号为0～15。 Database ID */
     long long avg_ttl;            /* 存储数据库对象的平均TTL，用于统计 Average TTL, just for stats */
     unsigned long expires_cursor; /* Cursor of the active expire cycle. */
-    list *defrag_later;           /* List of key names to attempt to defrag one by one, gradually. */
+    list *defrag_later;           /* 逐渐尝试逐个碎片整理的键列表 List of key names to attempt to defrag one by one, gradually. */
 } redisDb;
 
 /* Declare database backup that include redis main DBs and slots to keys map.
@@ -880,7 +884,9 @@ typedef struct client
     uint64_t id; /* 客户端唯一ID Client incremental unique ID. */
     connection *conn;
     int resp;                           /* RESP协议版本  RESP protocol version. Can be 2 or 3. */
-    redisDb *db;                        /* 客户端使用select命令选择的数据库对象 Pointer to currently SELECTed DB. */
+    /* 客户端使用select命令选择的数据库对象 Redis初始有16个数据库，每个客户端有对应的数据库 
+     * 要改变客户端对应的数据库可以使用select命令选择数据库Pointer to currently SELECTed DB. */
+    redisDb *db;                        
     robj *name;                         /* 客户端名称，可以使用命令CLIENT SETNAME设置 As set by CLIENT SETNAME. */
     sds querybuf;                       /* 输入缓冲区，recv函数接收的客户端命令请求会暂时缓存在此缓冲区。 Buffer we use to accumulate client queries. */
     size_t qb_pos;                      /* The position we have read in querybuf. */
@@ -1047,6 +1053,7 @@ typedef struct zskiplist
     int level;            //跳跃表的高度。
 } zskiplist;
 
+//有序集合
 //Redis同时采用字典与跳跃表存储有序集合。
 typedef struct zset
 {

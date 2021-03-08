@@ -231,7 +231,8 @@ unsigned long setTypeSize(const robj *subject) {
 
 /* Convert the set to specified encoding. The resulting dict (when converting
  * to a hash table) is presized to hold the number of elements in the original
- * set. */
+ * set.
+ * 编码转换 */
 void setTypeConvert(robj *setobj, int enc) {
     setTypeIterator *si;
     serverAssertWithInfo(NULL,setobj,setobj->type == OBJ_SET &&

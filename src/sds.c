@@ -457,7 +457,8 @@ void sdsIncrLen(sds s, ssize_t incr)
     s[len] = '\0';
 }
 
-/* Grow the sds to have the specified length. Bytes that were not part of
+/* 进行识别，只有当offset+sdslen(value)大于原值长度时才会扩充空间，否则直接返回原字符串。
+ * Grow the sds to have the specified length. Bytes that were not part of
  * the original length of the sds will be set to zero.
  *
  * if the specified length is smaller than the current length, no operation
@@ -478,12 +479,13 @@ sds sdsgrowzero(sds s, size_t len)
     return s;
 }
 
-/* Append the specified binary-safe string pointed by 't' of 'len' bytes to the
+/* 将长度len的字符串t添加至s结尾
+ * Append the specified binary-safe string pointed by 't' of 'len' bytes to the
  * end of the specified sds string 's'.
  *
  * After the call, the passed sds string is no longer valid and all the
  * references must be substituted with the new pointer returned by the call. */
-sds sdscatlen(sds s, const void *t, size_t len)
+sds  sdscatlen(sds s, const void *t, size_t len)
 {
     size_t curlen = sdslen(s);
 

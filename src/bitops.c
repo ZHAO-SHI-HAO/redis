@@ -523,7 +523,8 @@ unsigned char *getObjectReadOnlyString(robj *o, long *len, char *llbuf) {
     return p;
 }
 
-/* SETBIT key offset bitvalue */
+/* 对key所存储的字符串值，设置指定偏移量上的比特位。
+ * SETBIT key offset bitvalue */
 void setbitCommand(client *c) {
     robj *o;
     char *err = "bit is not an integer or out of range";
@@ -547,10 +548,10 @@ void setbitCommand(client *c) {
     if ((o = lookupStringForBitCommand(c,bitoffset)) == NULL) return;
 
     /* Get current values */
-    byte = bitoffset >> 3;
-    byteval = ((uint8_t*)o->ptr)[byte];
-    bit = 7 - (bitoffset & 0x7);
-    bitval = byteval & (1 << bit);
+    byte = bitoffset >> 3; //一个字节是8位，现在需要除以8，以定位到第byte个字节上
+    byteval = ((uint8_t*)o->ptr)[byte]; //取出第byte个字节
+    bit = 7 - (bitoffset & 0x7); //offset对8取模
+    bitval = byteval & (1 << bit); //1<<bit表示将1从低位向左移bit位，获取第bit位
 
     /* Update byte with new bit value and return original value */
     byteval &= ~(1 << bit);

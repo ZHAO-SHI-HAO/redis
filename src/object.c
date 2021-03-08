@@ -421,24 +421,30 @@ void trimStringObjectIfNeeded(robj *o) {
     }
 }
 
-/* Try to encode a string object in order to save space */
+/* 根据value的不同长度和类型对value进行编码。
+ * Try to encode a string object in order to save space */
 robj *tryObjectEncoding(robj *o) {
     long value;
     sds s = o->ptr;
     size_t len;
 
-    /* Make sure this is a string object, the only type we encode
+    /* o的类型是否为string类型 
+     * Make sure this is a string object, the only type we encode
      * in this function. Other types use encoded memory efficient
      * representations but are handled by the commands implementing
      * the type. */
     serverAssertWithInfo(NULL,o,o->type == OBJ_STRING);
 
-    /* We try some specialized encoding only for objects that are
+    /* 判断o的encoding是否为sds类型，只有sds类型的数据才可以进一步优化
+     * We try some specialized encoding only for objects that are
      * RAW or EMBSTR encoded, in other words objects that are still
      * in represented by an actually array of chars. */
     if (!sdsEncodedObject(o)) return o;
 
-    /* It's not safe to encode shared objects: shared objects can be shared
+    /* 3）判断引用计数refcount，如果对象的引用计数大于1，表示此对象在多处被引用。
+     * 在tryObjectEncoding函数结束时可能会修改o的值，所以贸然继续进行可能会造成其他影响，
+     * 所以在refcount大于1的情况下，结束函数的运行，将o直接返回：
+     * It's not safe to encode shared objects: shared objects can be shared
      * everywhere in the "object space" of Redis and may end in places where
      * they are not handled. We handle them only as values in the keyspace. */
      if (o->refcount > 1) return o;
@@ -455,18 +461,18 @@ robj *tryObjectEncoding(robj *o) {
         if ((server.maxmemory == 0 ||
             !(server.maxmemory_policy & MAXMEMORY_FLAG_NO_SHARED_INTEGERS)) &&
             value >= 0 &&
-            value < OBJ_SHARED_INTEGERS)
+            value < OBJ_SHARED_INTEGERS) //能返回共享数字对象
         {
             decrRefCount(o);
             incrRefCount(shared.integers[value]);
             return shared.integers[value];
-        } else {
+        } else { //不返回共享数字对象 尝试转为64位long整型
             if (o->encoding == OBJ_ENCODING_RAW) {
                 sdsfree(o->ptr);
                 o->encoding = OBJ_ENCODING_INT;
                 o->ptr = (void*) value;
                 return o;
-            } else if (o->encoding == OBJ_ENCODING_EMBSTR) {
+            } else if (o->encoding == OBJ_ENCODING_EMBSTR) { 
                 decrRefCount(o);
                 return createStringObjectFromLongLongForValue(value);
             }
@@ -477,7 +483,7 @@ robj *tryObjectEncoding(robj *o) {
      * try the EMBSTR encoding which is more efficient.
      * In this representation the object and the SDS string are allocated
      * in the same chunk of memory to save space and cache misses. */
-    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) {
+    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) { //不能转为64位long的字符串
         robj *emb;
 
         if (o->encoding == OBJ_ENCODING_EMBSTR) return o;
@@ -486,7 +492,8 @@ robj *tryObjectEncoding(robj *o) {
         return emb;
     }
 
-    /* We can't encode the object...
+    /* 释放空余字节 最后的努力
+     * We can't encode the object...
      *
      * Do the last try, and at least optimize the SDS string inside
      * the string object to require little space, in case there
@@ -1221,7 +1228,8 @@ int objectSetLRUOrLFU(robj *val, long long lfu_freq, long long lru_idle,
 
 /* ======================= The OBJECT and MEMORY commands =================== */
 
-/* This is a helper function for the OBJECT command. We need to lookup keys
+/* object命令的辅助函数，可在不修改LRU和其他参数的情况下查找对象，并带有回复功能。
+ * This is a helper function for the OBJECT command. We need to lookup keys
  * without any modification of LRU or other parameters. */
 robj *objectCommandLookup(client *c, robj *key) {
     return lookupKeyReadWithFlags(c->db,key,LOOKUP_NOTOUCH|LOOKUP_NONOTIFY);
@@ -1234,7 +1242,8 @@ robj *objectCommandLookupOrReply(client *c, robj *key, robj *reply) {
     return o;
 }
 
-/* Object command allows to inspect the internals of a Redis Object.
+/* 检查Redis对象的内部属性 
+ * Object command allows to inspect the internals of a Redis Object.
  * Usage: OBJECT <refcount|encoding|idletime|freq> <key> */
 void objectCommand(client *c) {
     robj *o;
@@ -1265,17 +1274,18 @@ NULL
                 == NULL) return;
         addReplyBulkCString(c,strEncoding(o->encoding));
     } else if (!strcasecmp(c->argv[1]->ptr,"idletime") && c->argc == 3) {
+        //获取对象
         if ((o = objectCommandLookupOrReply(c,c->argv[2],shared.null[c->resp]))
-                == NULL) return;
-        if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
+                == NULL) return; //返回键的空闲时间
+        if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) { //内存驱逐策略是LFU则返回错误
             addReplyError(c,"An LFU maxmemory policy is selected, idle time not tracked. Please note that when switching between policies at runtime LRU and LFU data will take some time to adjust.");
             return;
         }
         addReplyLongLong(c,estimateObjectIdleTime(o)/1000);
-    } else if (!strcasecmp(c->argv[1]->ptr,"freq") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"freq") && c->argc == 3) { //返回键的对数访问频率计数器
         if ((o = objectCommandLookupOrReply(c,c->argv[2],shared.null[c->resp]))
                 == NULL) return;
-        if (!(server.maxmemory_policy & MAXMEMORY_FLAG_LFU)) {
+        if (!(server.maxmemory_policy & MAXMEMORY_FLAG_LFU)) { //内存驱逐策略不是LFU则返回错误
             addReplyError(c,"An LFU maxmemory policy is not selected, access frequency not tracked. Please note that when switching between policies at runtime LRU and LFU data will take some time to adjust.");
             return;
         }

@@ -199,6 +199,7 @@ int hashTypeExists(robj *o, sds field) {
 #define HASH_SET_TAKE_FIELD (1<<0)
 #define HASH_SET_TAKE_VALUE (1<<1)
 #define HASH_SET_COPY 0
+//设置field-value对
 int hashTypeSet(robj *o, sds field, sds value, int flags) {
     int update = 0;
 
@@ -659,11 +660,12 @@ void hsetCommand(client *c) {
         addReplyErrorFormat(c,"wrong number of arguments for '%s' command",c->cmd->name);
         return;
     }
-
+    //查找key，不存在则新建
     if ((o = hashTypeLookupWriteOrCreate(c,c->argv[1])) == NULL) return;
+    //尝试转换底层编码
     hashTypeTryConversion(o,c->argv,2,c->argc-1);
 
-    for (i = 2; i < c->argc; i += 2)
+    for (i = 2; i < c->argc; i += 2) //依次写入field-value对
         created += !hashTypeSet(o,c->argv[i]->ptr,c->argv[i+1]->ptr,HASH_SET_COPY);
 
     /* HMSET (deprecated) and HSET return value is different. */
@@ -829,10 +831,10 @@ void hdelCommand(client *c) {
     if ((o = lookupKeyWriteOrReply(c,c->argv[1],shared.czero)) == NULL ||
         checkType(c,o,OBJ_HASH)) return;
 
-    for (j = 2; j < c->argc; j++) {
+    for (j = 2; j < c->argc; j++) { //依次删除field-value对
         if (hashTypeDelete(o,c->argv[j]->ptr)) {
             deleted++;
-            if (hashTypeLength(o) == 0) {
+            if (hashTypeLength(o) == 0) { //散列表已经为空，删除key
                 dbDelete(c->db,c->argv[1]);
                 keyremoved = 1;
                 break;

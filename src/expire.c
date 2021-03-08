@@ -507,8 +507,8 @@ void expireGenericCommand(client *c, long long basetime, int unit) {
     if (getLongLongFromObjectOrReply(c, param, &when, NULL) != C_OK)
         return;
     int negative_when = when < 0;
-    if (unit == UNIT_SECONDS) when *= 1000;
-    when += basetime;
+    if (unit == UNIT_SECONDS) when *= 1000; //单位转换
+    when += basetime; //加上基准时间
     if (((when < 0) && !negative_when) || ((when-basetime > 0) && negative_when)) {
         /* EXPIRE allows negative numbers, but we can at least detect an
          * overflow by either unit conversion or basetime addition. */
@@ -546,7 +546,7 @@ void expireGenericCommand(client *c, long long basetime, int unit) {
     }
 }
 
-/* EXPIRE key seconds */
+/* 设置key的过期时间 EXPIRE key seconds */
 void expireCommand(client *c) {
     expireGenericCommand(c,mstime(),UNIT_SECONDS);
 }
@@ -566,7 +566,7 @@ void pexpireatCommand(client *c) {
     expireGenericCommand(c,0,UNIT_MILLISECONDS);
 }
 
-/* Implements TTL and PTTL */
+/* 返回key剩余的生存时间 Implements TTL and PTTL */
 void ttlGenericCommand(client *c, int output_ms) {
     long long expire, ttl = -1;
 
@@ -575,34 +575,35 @@ void ttlGenericCommand(client *c, int output_ms) {
         addReplyLongLong(c,-2);
         return;
     }
-    /* The key exists. Return -1 if it has no expire, or the actual
+    /* 在过期字典里查找key对应的过期时间
+     * The key exists. Return -1 if it has no expire, or the actual
      * TTL value otherwise. */
     expire = getExpire(c->db,c->argv[1]);
-    if (expire != -1) {
+    if (expire != -1) { //有过期时间
         ttl = expire-mstime();
         if (ttl < 0) ttl = 0;
     }
     if (ttl == -1) {
         addReplyLongLong(c,-1);
     } else {
-        addReplyLongLong(c,output_ms ? ttl : ((ttl+500)/1000));
+        addReplyLongLong(c,output_ms ? ttl : ((ttl+500)/1000)); //毫秒转秒时+500四舍五入
     }
 }
 
-/* TTL key */
+/* 返回key剩余的生存时间，单位秒。 TTL key */
 void ttlCommand(client *c) {
     ttlGenericCommand(c, 0);
 }
 
-/* PTTL key */
+/* 返回key剩余的生存时间，单位毫秒。PTTL key */
 void pttlCommand(client *c) {
     ttlGenericCommand(c, 1);
 }
 
-/* PERSIST key */
+/* 移除key的过期时间，如果有。 PERSIST key */
 void persistCommand(client *c) {
-    if (lookupKeyWrite(c->db,c->argv[1])) {
-        if (removeExpire(c->db,c->argv[1])) {
+    if (lookupKeyWrite(c->db,c->argv[1])) { //查找key对象
+        if (removeExpire(c->db,c->argv[1])) { 
             signalModifiedKey(c,c->db,c->argv[1]);
             notifyKeyspaceEvent(NOTIFY_GENERIC,"persist",c->argv[1],c->db->id);
             addReply(c,shared.cone);
@@ -615,7 +616,7 @@ void persistCommand(client *c) {
     }
 }
 
-/* TOUCH key1 [key2 key3 ... keyN] */
+/* 更新key的访问时间，避免被lru策略淘汰 TOUCH key1 [key2 key3 ... keyN] */
 void touchCommand(client *c) {
     int touched = 0;
     for (int j = 1; j < c->argc; j++)

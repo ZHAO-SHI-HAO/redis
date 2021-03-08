@@ -81,7 +81,8 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
     }
 }
 
-/* Lookup a key for read operations, or return NULL if the key is not found
+/* 查找用于读取操作的键，如果在指定的数据库中找不到该键，则返回NULL。 
+ * Lookup a key for read operations, or return NULL if the key is not found
  * in the specified DB.
  *
  * As a side effect of calling this function:
@@ -136,7 +137,7 @@ robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
     if (val == NULL)
         goto keymiss;
     server.stat_keyspace_hits++;
-    return val;
+    return val; //! 获取的是value对象
 
 keymiss:
     if (!(flags & LOOKUP_NONOTIFY)) {
@@ -146,7 +147,8 @@ keymiss:
     return NULL;
 }
 
-/* Like lookupKeyReadWithFlags(), but does not use any flag, which is the
+/* 每次查找都会修改key的最后访问时间
+ * Like lookupKeyReadWithFlags(), but does not use any flag, which is the
  * common case. */
 robj *lookupKeyRead(redisDb *db, robj *key) {
     return lookupKeyReadWithFlags(db,key,LOOKUP_NONE);
@@ -237,7 +239,8 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
     dictFreeVal(db->dict, &auxentry);
 }
 
-/* High level Set operation. This function can be used in order to set
+/* 将key-value写入数据库。 
+ * High level Set operation. This function can be used in order to set
  * a key, whatever it was existing or not, to a new object.
  *
  * 1) The ref count of the value object is incremented.
@@ -689,15 +692,17 @@ void delGenericCommand(client *c, int lazy) {
     addReplyLongLong(c,numdel);
 }
 
+//该命令用于同步删除一个或多个key，因为是同步删除，所以在删除大key时可能会阻塞服务器。
 void delCommand(client *c) {
     delGenericCommand(c,server.lazyfree_lazy_user_del);
 }
 
+//以异步方式删除key
 void unlinkCommand(client *c) {
     delGenericCommand(c,1);
 }
 
-/* EXISTS key1 key2 ... key_N.
+/* 判断指定的key是否存在，并返回key存在的数量。EXISTS key1 key2 ... key_N.
  * Return value is the number of keys existing. */
 void existsCommand(client *c) {
     long long count = 0;
@@ -726,6 +731,7 @@ void selectCommand(client *c) {
     }
 }
 
+//在当前数据库中随机返回一个尚未过期的key（不删除）
 void randomkeyCommand(client *c) {
     robj *key;
 
@@ -738,6 +744,7 @@ void randomkeyCommand(client *c) {
     decrRefCount(key);
 }
 
+//匹配合适的key并一次性返回，如果匹配的键较多，则可能阻塞服务器，因此该命令一般禁止在线上使用。
 void keysCommand(client *c) {
     dictIterator *di;
     dictEntry *de;
@@ -746,13 +753,13 @@ void keysCommand(client *c) {
     unsigned long numkeys = 0;
     void *replylen = addReplyDeferredLen(c);
 
-    di = dictGetSafeIterator(c->db->dict);
+    di = dictGetSafeIterator(c->db->dict); //初始化安全迭代器
     allkeys = (pattern[0] == '*' && plen == 1);
     while((de = dictNext(di)) != NULL) {
         sds key = dictGetKey(de);
         robj *keyobj;
 
-        if (allkeys || stringmatchlen(pattern,plen,key,sdslen(key),0)) {
+        if (allkeys || stringmatchlen(pattern,plen,key,sdslen(key),0)) { //正则表达式匹配key
             keyobj = createStringObject(key,sdslen(key));
             if (!keyIsExpired(c->db,keyobj)) {
                 addReplyBulk(c,keyobj);
@@ -844,7 +851,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
     /* Set i to the first option argument. The previous one is the cursor. */
     i = (o == NULL) ? 2 : 3; /* Skip the key argument if needed. */
 
-    /* Step 1: Parse options. */
+    /* Step 1: Parse options.解析count和match参数，如果没有指定count，默认返回10条数据。 */
     while (i < c->argc) {
         j = c->argc - i;
         if (!strcasecmp(c->argv[i]->ptr, "count") && j >= 2) {
@@ -879,7 +886,10 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         }
     }
 
-    /* Step 2: Iterate the collection.
+    /* 开始迭代集合，如果key保存为ziplist或者intset，则一次性返回所有数据，
+     * 游标为0（scan命令的游标参数为0时表示新一轮迭代开始，命令返回的游标值为0时表示迭代结束）。
+     * 由于Redis设计只有数据量比较小的时候才会保存为ziplist或者intset，所以此处不会影响性能。
+     * Step 2: Iterate the collection.
      *
      * Note that if the object is encoded with a ziplist, intset, or any other
      * representation that is not a hash table, we are sure that it is also
@@ -1016,7 +1026,8 @@ cleanup:
     listRelease(keys);
 }
 
-/* The SCAN command completely relies on scanGenericCommand. */
+/* 遍历数据库中几乎所有的键，并且不用担心阻塞服务器。使用频率较低。
+ * The SCAN command completely relies on scanGenericCommand. */
 void scanCommand(client *c) {
     unsigned long cursor;
     if (parseScanCursorOrReply(c,c->argv[1],&cursor) == C_ERR) return;
@@ -1053,6 +1064,9 @@ char* getObjectTypeName(robj *o) {
     return type;
 }
 
+/* 回key对应存储的值的类型，根据Redis对象type属性，可以是none（key不存在）, string（字符串）, 
+ * list（列表）, set（集合）, zset（有序集）, hash（散列表）。
+ * 通过读取redisObject对象的type属性实现。*/
 void typeCommand(client *c) {
     robj *o;
     o = lookupKeyReadWithFlags(c->db,c->argv[1],LOOKUP_NOTOUCH);
@@ -1097,8 +1111,8 @@ void renameGenericCommand(client *c, int nx) {
     }
 
     incrRefCount(o);
-    expire = getExpire(c->db,c->argv[1]);
-    if (lookupKeyWrite(c->db,c->argv[2]) != NULL) {
+    expire = getExpire(c->db,c->argv[1]); //将key的过期时间保存至expire
+    if (lookupKeyWrite(c->db,c->argv[2]) != NULL) { //新key存在则删除
         if (nx) {
             decrRefCount(o);
             addReply(c,shared.czero);
@@ -1108,9 +1122,9 @@ void renameGenericCommand(client *c, int nx) {
          * with the same name. */
         dbDelete(c->db,c->argv[2]);
     }
-    dbAdd(c->db,c->argv[2],o);
+    dbAdd(c->db,c->argv[2],o); //将旧key的值对象和新的key添加到redis字典中
     if (expire != -1) setExpire(c,c->db,c->argv[2],expire);
-    dbDelete(c->db,c->argv[1]);
+    dbDelete(c->db,c->argv[1]);// 删除旧key
     signalModifiedKey(c,c->db,c->argv[1]);
     signalModifiedKey(c,c->db,c->argv[2]);
     notifyKeyspaceEvent(NOTIFY_GENERIC,"rename_from",
@@ -1121,6 +1135,7 @@ void renameGenericCommand(client *c, int nx) {
     addReply(c,nx ? shared.cone : shared.ok);
 }
 
+//重命名key
 void renameCommand(client *c) {
     renameGenericCommand(c,0);
 }
@@ -1389,7 +1404,7 @@ void swapdbCommand(client *c) {
 /*-----------------------------------------------------------------------------
  * Expires API
  *----------------------------------------------------------------------------*/
-
+//从过期字典中删除key的过期时间
 int removeExpire(redisDb *db, robj *key) {
     /* An expire may only be removed if there is a corresponding entry in the
      * main dict. Otherwise, the key will never be freed. */
@@ -1397,7 +1412,7 @@ int removeExpire(redisDb *db, robj *key) {
     return dictDelete(db->expires,key->ptr) == DICT_OK;
 }
 
-/* Set an expire to the specified key. If the expire is set in the context
+/* 设置超时时间 Set an expire to the specified key. If the expire is set in the context
  * of an user calling a command 'c' is the client, otherwise 'c' is set
  * to NULL. The 'when' parameter is the absolute unix time in milliseconds
  * after which the key will no longer be considered valid. */

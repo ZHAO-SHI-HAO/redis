@@ -86,7 +86,8 @@ unsigned int LRU_CLOCK(void) {
     return lruclock;
 }
 
-/* Given an object returns the min number of milliseconds the object was never
+/* 返回空转的毫秒时间
+ * Given an object returns the min number of milliseconds the object was never
  * requested, using an approximated LRU algorithm. */
 unsigned long long estimateObjectIdleTime(robj *o) {
     unsigned long long lruclock = LRU_CLOCK();
@@ -283,12 +284,13 @@ unsigned long LFUGetTimeInMinutes(void) {
     return (server.unixtime/60) & 65535;
 }
 
-/* Given an object last access time, compute the minimum number of minutes
+/* 获取已过去的分钟数
+ * Given an object last access time, compute the minimum number of minutes
  * that elapsed since the last access. Handle overflow (ldt greater than
  * the current 16 bits minutes time) considering the time as wrapping
  * exactly once. */
 unsigned long LFUTimeElapsed(unsigned long ldt) {
-    unsigned long now = LFUGetTimeInMinutes();
+    unsigned long now = LFUGetTimeInMinutes(); //获取当前时间分钟数
     if (now >= ldt) return now-ldt;
     return 65535-ldt+now;
 }
@@ -305,7 +307,8 @@ uint8_t LFULogIncr(uint8_t counter) {
     return counter;
 }
 
-/* If the object decrement time is reached decrement the LFU counter but
+/* 获取对象访问频率
+ * If the object decrement time is reached decrement the LFU counter but
  * do not update LFU fields of the object, we update the access time
  * and counter in an explicit way when the object is really accessed.
  * And we will times halve the counter according to the times of
@@ -318,6 +321,7 @@ uint8_t LFULogIncr(uint8_t counter) {
 unsigned long LFUDecrAndReturn(robj *o) {
     unsigned long ldt = o->lru >> 8;
     unsigned long counter = o->lru & 255;
+    //衰变算法
     unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;
     if (num_periods)
         counter = (num_periods > counter) ? 0 : counter - num_periods;
