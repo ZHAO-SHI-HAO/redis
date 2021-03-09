@@ -51,8 +51,8 @@ robj *setTypeCreate(sds value) {
  * returned, otherwise the new element is added and 1 is returned. */
 int setTypeAdd(robj *subject, sds value) {
     long long llval;
-    if (subject->encoding == OBJ_ENCODING_HT) {
-        dict *ht = subject->ptr;
+    if (subject->encoding == OBJ_ENCODING_HT) { //set的底层用的是字典，将key直接添加进dict。用dict存储集合元素时，元素值存储于字典的key中，字典的value值为null。
+        dict *ht = subject->ptr; 
         dictEntry *de = dictAddRaw(ht,value,NULL);
         if (de) {
             dictSetKey(ht,de,sdsdup(value));
@@ -60,18 +60,22 @@ int setTypeAdd(robj *subject, sds value) {
             return 1;
         }
     } else if (subject->encoding == OBJ_ENCODING_INTSET) {
-        if (isSdsRepresentableAsLongLong(value,&llval) == C_OK) {
+        if (isSdsRepresentableAsLongLong(value,&llval) == C_OK) { //新元素可以转为long long
             uint8_t success = 0;
-            subject->ptr = intsetAdd(subject->ptr,llval,&success);
+            subject->ptr = intsetAdd(subject->ptr,llval,&success); //使用intset储存set
             if (success) {
                 /* Convert to regular set when the intset contains
-                 * too many entries. */
+                 * too many entries.
+                 * 则用intsetAdd新增元素。且当新增成功，但intset的元素个数过多
+                 * （个数大于server.set_max_intset_entries时。该参数可配置，默认为512），
+                 * 同样会触发setType-Convert转化 */
                 if (intsetLen(subject->ptr) > server.set_max_intset_entries)
                     setTypeConvert(subject,OBJ_ENCODING_HT);
                 return 1;
             }
-        } else {
-            /* Failed to get integer from object, convert to regular set. */
+        } else {// 新元素不能转为long long数字
+            /* 若新增的元素本身非数字（value转long long失败），需要通过setTypeConvert转化后再存储；
+             * Failed to get integer from object, convert to regular set. */
             setTypeConvert(subject,OBJ_ENCODING_HT);
 
             /* The set *was* an intset and this value is not integer
@@ -404,6 +408,7 @@ void smoveCommand(client *c) {
     addReply(c,shared.cone);
 }
 
+//查找成员 判断元素是否在指定集合中。
 void sismemberCommand(client *c) {
     robj *set;
 

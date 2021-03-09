@@ -502,7 +502,7 @@ int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
     return (orig_head != quicklist->head);
 }
 
-/* Add new entry to tail node of quicklist.
+/* 尾节点插入 Add new entry to tail node of quicklist.
  *
  * Returns 0 if used existing tail.
  * Returns 1 if new tail created. */
@@ -1417,7 +1417,8 @@ int quicklistPop(quicklist *quicklist, int where, unsigned char **data,
     return ret;
 }
 
-/* Wrapper to allow argument-based switching between HEAD/TAIL pop */
+/* 将value插入到quicklist指定位置
+ * Wrapper to allow argument-based switching between HEAD/TAIL pop */
 void quicklistPush(quicklist *quicklist, void *value, const size_t sz,
                    int where) {
     if (where == QUICKLIST_HEAD) {

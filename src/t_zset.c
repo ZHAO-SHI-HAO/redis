@@ -2094,7 +2094,7 @@ void zaddGenericCommand(client *c, int flags)
             goto cleanup;
     }
 
-    /* Lookup the key and create the sorted set if does not exist. */
+    /* 查找key是否存在 Lookup the key and create the sorted set if does not exist. */
     zobj = lookupKeyWrite(c->db, key);
     if (checkType(c, zobj, OBJ_ZSET))
         goto cleanup;
@@ -2165,6 +2165,7 @@ void zaddCommand(client *c)
     zaddGenericCommand(c, ZADD_NONE);
 }
 
+//在有序集合key的member的分值上增加increment。
 void zincrbyCommand(client *c)
 {
     zaddGenericCommand(c, ZADD_INCR);
@@ -3746,7 +3747,8 @@ void zrangestoreCommand(client *c)
     zrangeGenericCommand(&handler, 2, 1, ZRANGE_AUTO, ZRANGE_DIRECTION_AUTO);
 }
 
-/* ZRANGE <key> <min> <max> [BYSCORE | BYLEX] [REV] [WITHSCORES] [LIMIT offset count] */
+/* ZRANGE <key> <min> <max> [BYSCORE | BYLEX] [REV] [WITHSCORES] [LIMIT offset count] 
+ * 获取有序集合key中指定区间的成员，成员按照分值递增排序，如果分值相同，成员按照字典序排序。*/
 void zrangeCommand(client *c)
 {
     zrange_result_handler handler;
@@ -3754,7 +3756,8 @@ void zrangeCommand(client *c)
     zrangeGenericCommand(&handler, 1, 0, ZRANGE_AUTO, ZRANGE_DIRECTION_AUTO);
 }
 
-/* ZREVRANGE <key> <min> <max> [WITHSCORES] */
+/* ZREVRANGE <key> <min> <max> [WITHSCORES] 
+ * 跟zrange相反，获取有序集合key中指定区间的成员，成员按照分值递减排序，如果分值相同，成员按照字典序排序。*/
 void zrevrangeCommand(client *c)
 {
     zrange_result_handler handler;
@@ -3939,6 +3942,7 @@ void zrevrangebyscoreCommand(client *c)
     zrangeGenericCommand(&handler, 1, 0, ZRANGE_SCORE, ZRANGE_DIRECTION_REVERSE);
 }
 
+//返回有序集key中score值在[min, max]区间的成员的数量。
 void zcountCommand(client *c)
 {
     robj *key = c->argv[1];
@@ -4467,6 +4471,7 @@ cleanup:
     }
 }
 
+//获取有序集合key中的基数。
 void zcardCommand(client *c)
 {
     robj *key = c->argv[1];
@@ -4479,6 +4484,7 @@ void zcardCommand(client *c)
     addReplyLongLong(c, zsetLength(zobj));
 }
 
+//获取有序集合key中成员member的分值，返回值为字符串。
 void zscoreCommand(client *c)
 {
     robj *key = c->argv[1];
@@ -4546,16 +4552,20 @@ void zrankGenericCommand(client *c, int reverse)
     }
 }
 
+//按照分值从小到大返回有序集合成员member的排名，其中排名从0开始计算。
+//如果member不是有序集合key的成员，返回nil。
 void zrankCommand(client *c)
 {
     zrankGenericCommand(c, 0);
 }
 
+//按照分值从小到大返回有序集合成员member的排名 从大到小返回member的排名。
 void zrevrankCommand(client *c)
 {
     zrankGenericCommand(c, 1);
 }
 
+//迭代有序集合中的元素成员和分值
 void zscanCommand(client *c)
 {
     robj *o;

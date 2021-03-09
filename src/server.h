@@ -1708,8 +1708,8 @@ struct redisCommand
     int firstkey; /* The first argument that's a key (0 = no keys) */
     int lastkey;  /* The last argument that's a key */
     int keystep;  /* The step between first and last key */
-    long long microseconds; 从服务器启动至今命令总的执行时间
-    long long calls; 从服务器启动至今命令执行的次数，用于统计。
+    long long // microseconds; 从服务器启动至今命令总的执行时间
+    long long calls; //从服务器启动至今命令执行的次数，用于统计。
     long long rejected_calls, failed_calls;
     int id; /* Command ID. This is a progressive ID starting from 0 that
                    is assigned at runtime, and is used in order to check

@@ -602,7 +602,8 @@ void handleClientsBlockedOnKeys(void) {
  *   to the number of elements we have in the ready list.
  */
 
-/* Set a client in blocking mode for the specified key (list, zset or stream),
+/* 阻塞客户端 redisDb结构体中有一个字段blocking_keys，类型为字典，所有因为某个键阻塞的客户端都会被添加到该字典中
+ * Set a client in blocking mode for the specified key (list, zset or stream),
  * with the specified timeout. The 'type' argument is BLOCKED_LIST,
  * BLOCKED_ZSET or BLOCKED_STREAM depending on the kind of operation we are
  * waiting for an empty key in order to awake the client. The client is blocked

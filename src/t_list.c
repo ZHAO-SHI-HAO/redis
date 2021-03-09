@@ -224,15 +224,15 @@ robj *listTypeDup(robj *o) {
 void pushGenericCommand(client *c, int where, int xx) {
     int j;
 
-    robj *lobj = lookupKeyWrite(c->db, c->argv[1]);
-    if (checkType(c,lobj,OBJ_LIST)) return;
-    if (!lobj) {
+    robj *lobj = lookupKeyWrite(c->db, c->argv[1]);  //查找key
+    if (checkType(c,lobj,OBJ_LIST)) return; //robj中储存的是列表
+    if (!lobj) { //没找到key对应的value
         if (xx) {
             addReply(c, shared.czero);
             return;
         }
 
-        lobj = createQuicklistObject();
+        lobj = createQuicklistObject(); //创建新列表
         quicklistSetOptions(lobj->ptr, server.list_max_ziplist_size,
                             server.list_compress_depth);
         dbAdd(c->db,c->argv[1],lobj);
@@ -487,7 +487,7 @@ void lpopCommand(client *c) {
     popGenericCommand(c,LIST_HEAD);
 }
 
-/* RPOP <key> [count] */
+/* RPOP <key> [count] 从列表尾部弹出元素，并返回给客户端*/
 void rpopCommand(client *c) {
     popGenericCommand(c,LIST_TAIL);
 }
